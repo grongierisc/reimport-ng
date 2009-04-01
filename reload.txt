@@ -1,0 +1,78 @@
+
+reimport is the "reload" for Python that just works (to a reasonable extent).
+
+
+
+PROCESS
+    given several modules to reimport
+    find parent packages that claim reimport ownership, switch to reimporting those
+    call __unimport__ method on all modules
+        exception aborts process? or removes those modules from list?
+    move reimport targets out of sys.modules into temp holding, ignore builtin and extensions
+    attempt to import all targets
+        ImportError rolls back
+            find references outside of reimported module, zap them back to prev?
+            temp held modules back to sys.modules
+            break
+    recursively collate all references from old to new
+    delete modules from holding
+
+
+
+
+Features
+
+    reload module and fix references
+        Find all objects in module before the reload. load the new module.
+        create mapping from old objects to new objects. Walk through all
+        off gc and replace references.
+        OR- do a "deep guts" replacement of objects, so that references to
+        original classes and methods still work. ie, registered callbacks
+        will call to the new classes.
+        
+    smart module management
+        support __unload__ and __reload__ functions in modules, and on
+        classes perhaps?
+        Also add a callback for a package when its module gets reloaded?
+        allow some sort of "meta commands" comments or magic global
+        variables that can control the overwrite operations?
+        allow package to say "reimport me, instead of my child module".
+        reimporting a package reimports all its children? (in a proper order?)
+
+
+    module dependency finder
+        create a "dag" for modules that reference each other.
+        beware of infinite recursions. of which there will be many.
+        use weakrefs in the structure to break cycles.
+
+        when reimporting many modules. try to find the optimal order
+        (least dependencies to most dependencies)
+
+    automatic timestack tracking to find out of date modules
+        Must keep an an internal map of last loaded time for a module
+        if module not in map, assume loaded at time.time() of 0.0.
+
+    transactional reloading
+        If new import has a problem or syntax error, do not clobber
+        existing module.
+        not intending to support import hooks.
+
+    extension modules
+        can these be reloaded? i suspect not. a .pyd is locked while
+        used. can python unload an extension module?
+        nice example of this that needed a c extension. now can be done
+        with ctypes.
+
+    propogation of global constants
+        requires a bytecode analyzer that can find "from X import A,B,C"
+        and reset those values when X is reloaded?
+        expensive since modules do not retain their "code" object
+        perhaps this is a separate manual function. push_constants(module) ?
+        or do this automaticall for modules that reference the reloaded
+        module or its parent package directly. could build a dependency graph
+        from loaded modules in the gc, and only push to downstream modules?
+
+
+
+
+
