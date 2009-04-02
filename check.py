@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import weakref
+import time
 sys.path.insert(0, "tests")
 
 shutil.copy("tests/classa_orig.py", "tests/classa.py")
@@ -26,46 +27,46 @@ HOLDER2.c = classa.ClassA
 HOLDER2.o = classa.objA
 HOLDER3.c = classa.ClassA
 HOLDER3.o = classa.objA
-goners = [classa.objA.onlyOrigA, classa.ClassA.onlyOrigA]
+goners = ["BUTROS", classa.objA.onlyOrigA, classa.ClassA.onlyOrigA]
+
 
 print (classa.objA.__doc__, classa.objA.runA.__doc__)
 classa.objA.runA()
 classb.objB.runA()
-obj.runA()
+#obj.runA()
 #meth()
 #ref().runA()
 #weakd[0]().runA()
 #weakd[1].runA()
 #[c().runA() for c in clss]
-[o.runA() for o in objs]
-[m() for m in meths]
-print len(goners), goners
+#[o.runA() for o in objs]
+#[m() for m in meths]
+print len(goners)#, goners
 
 
+time.sleep(1)
 shutil.copy("tests/classa_alt.py", "tests/classa.py")
 os.system("rm tests/*.pyc")
 
 
 import reimport
-reimport.reimport(classa)
+changed = reimport.modified(os.path.dirname(__file__))
+print "Changed modules:", changed
+reimport.reimport(*changed)
+
 
 print (classa.objA.__doc__, classa.objA.runA.__doc__)
 classa.objA.runA()
 classb.objB.runA()
-obj.runA()
-#meth()
-#ref().runA()
-#weakd[0]().runA()
-#weakd[1].runA()
-#[c().runA() for c in clss]
-[o.runA() for o in objs]
-[m() for m in meths]
-HOLDER1.c().runA()
-HOLDER1.o.runA()
-HOLDER2.c().runA()
-HOLDER2.o.runA()
-HOLDER3.c().runA()
-HOLDER3.o.runA()
-print len(goners), goners
+#obj.runA()
+#[o.runA() for o in objs]
+#[m() for m in meths]
+#HOLDER1.c().runA()
+#HOLDER1.o.runA()
+#HOLDER2.c().runA()
+#HOLDER2.o.runA()
+#HOLDER3.c().runA()
+#HOLDER3.o.runA()
+print len(goners)#, goners
 
 
