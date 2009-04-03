@@ -168,9 +168,13 @@ def _find_exact_target(module):
     # Find highest level parent package that has unimport callback
     parentName = name
     while True:
-        parentName = parentName.rpartition(".")[0]
-        if not parentName:
+        # parentName = parentName.rpartition(".")[0]
+        # rpartition not supported in Python 2.4
+        splitName = parentName.rsplit(".", 1)
+        if len(splitName) <= 1:
             return name, actualModule
+        parentName = splitName[0]
+        
         parentModule = sys.modules.get(parentName)
         unimport = getattr(parentModule, "__unimport__", None)
         if unimport is not None:
