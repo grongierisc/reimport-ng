@@ -36,8 +36,6 @@ import weakref
 import time
 
 
-# Start with a cheap timestamp for loaded modules.
-# This way we aren't scanning the file system without user request.
 _previous_scan_time = time.time() - 1.0
 _module_timestamps = {} #dict.fromkeys(sys.modules.iterkeys(), time.time())
 
@@ -355,8 +353,6 @@ def _remove_refs(old):
         containerType = type(container)
 
         if containerType == list:
-            if len(container) and container[0] == "BUTROS":
-                print "stripping from butros"
             while True:
                 try:
                     container.remove(old)

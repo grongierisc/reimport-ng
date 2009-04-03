@@ -33,14 +33,14 @@ goners = ["BUTROS", classa.objA.onlyOrigA, classa.ClassA.onlyOrigA]
 print (classa.objA.__doc__, classa.objA.runA.__doc__)
 classa.objA.runA()
 classb.objB.runA()
-#obj.runA()
-#meth()
-#ref().runA()
-#weakd[0]().runA()
-#weakd[1].runA()
-#[c().runA() for c in clss]
-#[o.runA() for o in objs]
-#[m() for m in meths]
+obj.runA()
+meth()
+ref().runA()
+weakd[0]().runA()
+weakd[1].runA()
+[c().runA() for c in clss]
+[o.runA() for o in objs]
+[m() for m in meths]
 print len(goners)#, goners
 
 
@@ -58,15 +58,15 @@ reimport.reimport(*changed)
 print (classa.objA.__doc__, classa.objA.runA.__doc__)
 classa.objA.runA()
 classb.objB.runA()
-#obj.runA()
-#[o.runA() for o in objs]
-#[m() for m in meths]
-#HOLDER1.c().runA()
-#HOLDER1.o.runA()
-#HOLDER2.c().runA()
-#HOLDER2.o.runA()
-#HOLDER3.c().runA()
-#HOLDER3.o.runA()
+obj.runA()
+[o.runA() for o in objs]
+[m() for m in meths]
+HOLDER1.c().runA()
+HOLDER1.o.runA()
+HOLDER2.c().runA()
+HOLDER2.o.runA()
+HOLDER3.c().runA()
+HOLDER3.o.runA()
 print len(goners)#, goners
 
 
