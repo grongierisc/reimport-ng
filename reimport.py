@@ -88,13 +88,14 @@ def reimport(*modules):
         _module_timestamps[name] = now
 
     # Rejigger the universe
+    ignores = (id(oldModules), )
     for name in reversed(reloadNames):
         old = oldModules[name]
         new = sys.modules[name]
         filename = new.__file__
         if filename.endswith(".pyo") or filename.endswith(".pyc"):
             filename = filename[:-1]
-        _rejigger_module(old, new, filename)
+        _rejigger_module(old, new, filename, ignores)
 
     # Success !   ?
 
@@ -108,7 +109,7 @@ def modified(path=None):
     if path:
         path = os.path.normpath(path) + os.sep
     
-    for name, module in sys.modules.iteritems():
+    for name, module in sys.modules.items():
         filename = _is_code_module(module)
         if not filename:
             continue
@@ -213,45 +214,49 @@ def _find_unimports(moduleNames):
 # and then to swap external references from old to new
 
 
-def _rejigger_module(old, new, filename):
+def _rejigger_module(old, new, filename, ignores):
     """Tell everyone that new is the new old, recursive"""
+    __internal_swaprefs_ignore__ = "rejigger_module"
 #    print "rejigger module:", filename
     oldVars = vars(old)
     newVars = vars(new)
-    
+    ignores = (id(oldVars),) + ignores    
     old.__doc__ = new.__doc__
 
     for name, value in newVars.iteritems():
-        if name.startswith("__"):
-            continue
+        #if name.startswith("__"):
+        #    continue
         
         try: objfile = inspect.getsourcefile(value)
         except TypeError: objfile = ""
         
         if name in oldVars:
             oldValue = oldVars[name]
+            if oldValue is value:
+                continue
 
             if inspect.isclass(value) and objfile == filename:
-                _rejigger_class(oldValue, value)
+                _rejigger_class(oldValue, value, ignores)
             
             elif inspect.isfunction(value) and objfile == filename:
-                _rejigger_func(oldValue, value)
+                _rejigger_func(oldValue, value, ignores)
         
         setattr(old, name, value)
 
     for name in oldVars.keys():
         if name not in newVars:
-            _remove_refs(getattr(old, name))
+            _remove_refs(getattr(old, name), ignores)
             delattr(old, name)
     
-    _swap_refs(old, new)
+    _swap_refs(old, new, ignores)
 
 
 
-def _rejigger_class(old, new):
-#    print "    rejigger class:", hex(id(old)), hex(id(new)), old
+def _rejigger_class(old, new, ignores):
+    __internal_swaprefs_ignore__ = "rejigger_class"    
     oldVars = vars(old)
     newVars = vars(new)
+    ignores = (id(oldVars),) + ignores    
 
     for name, value in newVars.iteritems():
         if name in ("__dict__", "__doc__", "__weakref__"):
@@ -259,12 +264,14 @@ def _rejigger_class(old, new):
 
         if name in oldVars:
             oldValue = oldVars[name]
+            if oldValue is value:
+                continue
 
             if inspect.isclass(value):
-                _rejigger_class(oldValue, value)
+                _rejigger_class(oldValue, value, ignores)
             
             elif inspect.isfunction(value):
-                _rejigger_func(oldValue, value)
+                _rejigger_func(oldValue, value, ignores)
 
 #            elif inspect.ismethod(value):
 #                _rejigger_func(oldValue.im_func, value.im_func)
@@ -274,43 +281,53 @@ def _rejigger_class(old, new):
     
     for name in oldVars.keys():
         if name not in newVars:
-            _remove_refs(getattr(old, name))
+            _remove_refs(getattr(old, name), ignores)
             delattr(old, name)
 
-    _swap_refs(old, new)
+    _swap_refs(old, new, ignores)
 
 
 
-def _rejigger_func(old, new):
-#    print "       rejigger func:", old
+def _rejigger_func(old, new, ignores):
+    __internal_swaprefs_ignore__ = "rejigger_func"    
     old.func_code = new.func_code
     old.func_doc = new.func_doc
     old.func_defaults = new.func_defaults
-    _swap_refs(old, new)
+    _swap_refs(old, new, ignores)
 
     
 
 _recursive_tuple_swap = set()
 
 
-def _swap_refs(old, new):
+def _swap_refs(old, new, ignores):
     """Swap references from one object to another"""
+    __internal_swaprefs_ignore__ = "swap_refs"    
     # Swap weak references
     refs = weakref.getweakrefs(old)
-    if not refs:
-        return
-    try:
-        newRef = weakref.ref(new)
-    except ValueError:
-        return
-    for oldRef in refs:
-        _swap_refs(oldRef, newRef)
+    if refs:
+        try:
+            newRef = weakref.ref(new)
+        except ValueError:
+            pass
+        else:
+            for oldRef in refs:
+                _swap_refs(oldRef, newRef, ignores + (id(refs),))
+    del refs
+
+    # find the 'instance' old style type
+    class OldClass: pass
+    instance = type(OldClass())
+    del OldClass
 
     # Swap through garbage collector
-    for container in gc.get_referrers(old):
+    referrers = gc.get_referrers(old)
+    for container in referrers:
+        if id(container) in ignores:
+            continue
         containerType = type(container)
         
-        if containerType == list:
+        if containerType is list:
             while True:
                 try:
                     index = container.index(old)
@@ -318,7 +335,7 @@ def _swap_refs(old, new):
                     break
                 container[index] = new
         
-        elif containerType == tuple:
+        elif containerType is tuple:
             # protect from recursive tuples
             orig = container
             if id(orig) in _recursive_tuple_swap:
@@ -333,27 +350,45 @@ def _swap_refs(old, new):
                         break
                     container[index] = new
                 container = tuple(container)
-                _swap_refs(orig, container)
+                _swap_refs(orig, container, ignores + (id(referrers),))
             finally:
                 _recursive_tuple_swap.remove(id(orig))
         
-        elif containerType == dict:
-            if old in container:
-                container[new] = container.pop(old)
-            for k,v in container.iteritems():
-                if v is old:
-                    container[k] = new
+        elif containerType is dict:
+            if "__internal_swaprefs_ignore__" not in container:
+                if old in container:
+                    container[new] = container.pop(old)
+                for k,v in container.iteritems():
+                    if v is old:
+                        container[k] = new
 
-        elif containerType == set:
+        elif containerType is set:
             container.remove(old)
             container.add(new)
+            
+        elif containerType == type:
+            if old in container.__bases__:
+                bases = list(container.__bases__)
+                bases[bases.index(old)] = new
+                container.__bases__ = tuple(bases)
+        
+        elif type(container) is old:
+            container.__class__ = new
+        
+        elif containerType is instance:
+            if container.__class__ is old:
+                container.__class__ = new
 
+    done = True
        
 
-def _remove_refs(old):
+def _remove_refs(old, ignores):
     """Remove references to an object"""        
+    __internal_swaprefs_ignore__ = "remove_refs"    
     # Remove through garbage collector
     for container in gc.get_referrers(old):
+        if id(container) in ignores:
+            continue
         containerType = type(container)
 
         if containerType == list:
@@ -372,7 +407,7 @@ def _remove_refs(old):
                 except ValueError:
                     break
             container = tuple(container)
-            _swap_refs(orig, container)
+            _swap_refs(orig, container, ignores)
         
         elif containerType == dict:
             if old in container:
