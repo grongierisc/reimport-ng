@@ -22,8 +22,6 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-"""reimport python modules"""
-
 
 __all__ = ["reimport", "modified"]
 
@@ -34,15 +32,18 @@ import gc
 import inspect
 import weakref
 import time
+import traceback
 
 
 _previous_scan_time = time.time() - 1.0
-_module_timestamps = {} #dict.fromkeys(sys.modules.iterkeys(), time.time())
+_module_timestamps = {}
 
 
 
 def reimport(*modules):
-    """reimport modules in a single transaction, by name or module reference"""
+    """Reimport python modules. Multiple modules can be passed either by
+        name or by reference. Only pure python modules can be reimported.
+        """
     reloadSet = set()
 
     # Get names of all modules being reloaded
@@ -78,7 +79,7 @@ def reimport(*modules):
             try:
                 __unimport__()
             except StandardError:
-                pass
+                traceback.print_exc()
         sys.modules.update(oldModules)
         raise
 
@@ -97,12 +98,14 @@ def reimport(*modules):
             filename = filename[:-1]
         _rejigger_module(old, new, filename, ignores)
 
-    # Success !   ?
 
 
 def modified(path=None):
     """Find loaded modules that have changed on disk under the given path.
-        If no path is given then all modules are searched."""
+        If no path is given then all modules are searched. This cannot 
+        detect modules that have changed before the reimport module was
+        actually imported.
+        """
     global _previous_scan_time
     modules = []
     
@@ -139,8 +142,9 @@ def modified(path=None):
     return modules
 
 
+
 def _is_code_module(module):
-    """determine if a module comes from python code"""
+    """Determine if a module comes from python code"""
     try:
         filename = inspect.getsourcefile(module) or "x.notfound"
     except StandardError:
@@ -151,10 +155,11 @@ def _is_code_module(module):
     return ""
 
 
+
 def _find_exact_target(module):
-    """given a module name or object, find the
+    """Given a module name or object, find the
             base module where reimport will happen."""
-    # Find list of actual modules from names or module references
+    # Given a name or a module, find both the name and the module
     actualModule = sys.modules.get(module)
     if actualModule is not None:
         name = module
@@ -179,7 +184,9 @@ def _find_exact_target(module):
         parentModule = sys.modules.get(parentName)
         unimport = getattr(parentModule, "__unimport__", None)
         if unimport is not None:
-            return parentName, parentModule
+            name = parentName
+            actualModule = parentModule
+
 
 
 def _find_reloading_modules(name):
@@ -192,11 +199,13 @@ def _find_reloading_modules(name):
     return modules
 
 
+
 def _package_depth_sort(names):
     """Sort a list of module names by their package depth"""
     def packageDepth(name):
         return name.count(".")
     return sorted(names, key=packageDepth)
+
 
 
 def _find_unimports(moduleNames):
@@ -210,23 +219,19 @@ def _find_unimports(moduleNames):
 
 
 
-# to rejigger is to copy internal values from new to old
+# To rejigger is to copy internal values from new to old
 # and then to swap external references from old to new
 
 
 def _rejigger_module(old, new, filename, ignores):
-    """Tell everyone that new is the new old, recursive"""
+    """Mighty morphin power modules"""
     __internal_swaprefs_ignore__ = "rejigger_module"
-#    print "rejigger module:", filename
     oldVars = vars(old)
     newVars = vars(new)
     ignores = (id(oldVars),) + ignores    
     old.__doc__ = new.__doc__
 
     for name, value in newVars.iteritems():
-        #if name.startswith("__"):
-        #    continue
-        
         try: objfile = inspect.getsourcefile(value)
         except TypeError: objfile = ""
         
@@ -253,6 +258,7 @@ def _rejigger_module(old, new, filename, ignores):
 
 
 def _rejigger_class(old, new, ignores):
+    """Mighty morphin power classes"""
     __internal_swaprefs_ignore__ = "rejigger_class"    
     oldVars = vars(old)
     newVars = vars(new)
@@ -273,10 +279,6 @@ def _rejigger_class(old, new, ignores):
             elif inspect.isfunction(value):
                 _rejigger_func(oldValue, value, ignores)
 
-#            elif inspect.ismethod(value):
-#                _rejigger_func(oldValue.im_func, value.im_func)
-#                _swap_refs(oldValue, value)
-
         setattr(old, name, value)
     
     for name in oldVars.keys():
@@ -289,6 +291,7 @@ def _rejigger_class(old, new, ignores):
 
 
 def _rejigger_func(old, new, ignores):
+    """Mighty morphin power functions"""
     __internal_swaprefs_ignore__ = "rejigger_func"    
     old.func_code = new.func_code
     old.func_doc = new.func_doc
@@ -379,11 +382,10 @@ def _swap_refs(old, new, ignores):
             if container.__class__ is old:
                 container.__class__ = new
 
-    done = True
        
 
 def _remove_refs(old, ignores):
-    """Remove references to an object"""        
+    """Remove references to a discontinued object"""
     __internal_swaprefs_ignore__ = "remove_refs"    
     # Remove through garbage collector
     for container in gc.get_referrers(old):

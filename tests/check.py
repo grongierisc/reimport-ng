@@ -3,7 +3,7 @@ import sys
 import shutil
 import weakref
 import time
-sys.path.insert(0, "tests")
+sys.path.insert(0, os.path.dirname(__file__))
 
 shutil.copy("tests/classa_orig.py", "tests/classa.py")
 os.system("rm tests/*.pyc")
