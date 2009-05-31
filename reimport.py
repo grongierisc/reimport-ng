@@ -32,11 +32,15 @@ import gc
 import inspect
 import weakref
 import time
-import traceback
 
 
 _previous_scan_time = time.time() - 1.0
 _module_timestamps = {}
+
+# find the 'instance' old style type
+class _OldClass: pass
+_InstanceType = type(_OldClass())
+del _OldClass
 
 
 
@@ -44,6 +48,7 @@ def reimport(*modules):
     """Reimport python modules. Multiple modules can be passed either by
         name or by reference. Only pure python modules can be reimported.
         """
+    __internal_swaprefs_ignore__ = "reimport"
     reloadSet = set()
 
     # Get names of all modules being reloaded
@@ -58,15 +63,14 @@ def reimport(*modules):
 
         reloadSet.update(_find_reloading_modules(name))
 
-    # Sort module names and call unimports
-    reloadNames = _package_depth_sort(reloadSet)
-    for __unimport__ in _find_unimports(reloadNames):
-        __unimport__()
+    # Sort module names 
+    reloadNames = _package_depth_sort(reloadSet, False)
 
     # Move modules out of sys
     oldModules = {}
     for name in reloadNames:
         oldModules[name] = sys.modules.pop(name)
+    prevNames = set(sys.modules)
 
     # Reimport modules, trying to rollback on exceptions
     try:
@@ -75,11 +79,11 @@ def reimport(*modules):
                 __import__(name)
 
     except StandardError:
-        for __unimport__ in _find_unimports(reloadNames):
-            try:
-                __unimport__()
-            except StandardError:
-                traceback.print_exc()
+        # Try to dissolve any newly import modules and revive the old ones
+        newNames = set(sys.modules) - prevNames
+        newNames = _package_depth_sort(newNames, True)
+        for name in newNames:
+            _unimport_module(sys.modules.pop(name))
         sys.modules.update(oldModules)
         raise
 
@@ -171,19 +175,16 @@ def _find_exact_target(module):
         else:
             return "", None
 
-    # Find highest level parent package that has unimport callback
+    # Find highest level parent package that has package_reimport magic
     parentName = name
     while True:
-        # parentName = parentName.rpartition(".")[0]
-        # rpartition not supported in Python 2.4
         splitName = parentName.rsplit(".", 1)
         if len(splitName) <= 1:
             return name, actualModule
         parentName = splitName[0]
         
         parentModule = sys.modules.get(parentName)
-        unimport = getattr(parentModule, "__unimport__", None)
-        if unimport is not None:
+        if getattr(parentModule, "__package_reimport__", None):
             name = parentName
             actualModule = parentModule
 
@@ -200,22 +201,11 @@ def _find_reloading_modules(name):
 
 
 
-def _package_depth_sort(names):
+def _package_depth_sort(names, reverse):
     """Sort a list of module names by their package depth"""
     def packageDepth(name):
         return name.count(".")
-    return sorted(names, key=packageDepth)
-
-
-
-def _find_unimports(moduleNames):
-    """Get unimport callbacks for a list of module names"""
-    unimports = []
-    for name in reversed(moduleNames):
-        unimport = getattr(sys.modules.get(name), "__unimport__", None)
-        if unimport:
-            unimports.append(unimport)
-    return unimports
+    return sorted(names, key=packageDepth, reverse=reverse)
 
 
 
@@ -228,7 +218,7 @@ def _rejigger_module(old, new, filename, ignores):
     __internal_swaprefs_ignore__ = "rejigger_module"
     oldVars = vars(old)
     newVars = vars(new)
-    ignores = (id(oldVars),) + ignores    
+    ignores += (id(oldVars),)
     old.__doc__ = new.__doc__
 
     for name, value in newVars.iteritems():
@@ -240,11 +230,12 @@ def _rejigger_module(old, new, filename, ignores):
             if oldValue is value:
                 continue
 
-            if inspect.isclass(value) and objfile == filename:
-                _rejigger_class(oldValue, value, ignores)
-            
-            elif inspect.isfunction(value) and objfile == filename:
-                _rejigger_func(oldValue, value, ignores)
+            if objfile == filename:
+                if inspect.isclass(value):
+                    _rejigger_class(oldValue, value, ignores)
+                    
+                elif inspect.isfunction(value):
+                    _rejigger_func(oldValue, value, ignores)
         
         setattr(old, name, value)
 
@@ -262,7 +253,7 @@ def _rejigger_class(old, new, ignores):
     __internal_swaprefs_ignore__ = "rejigger_class"    
     oldVars = vars(old)
     newVars = vars(new)
-    ignores = (id(oldVars),) + ignores    
+    ignores += (id(oldVars),)    
 
     for name, value in newVars.iteritems():
         if name in ("__dict__", "__doc__", "__weakref__"):
@@ -273,7 +264,7 @@ def _rejigger_class(old, new, ignores):
             if oldValue is value:
                 continue
 
-            if inspect.isclass(value):
+            if inspect.isclass(value) and value.__module__ == new.__module__:
                 _rejigger_class(oldValue, value, ignores)
             
             elif inspect.isfunction(value):
@@ -296,11 +287,51 @@ def _rejigger_func(old, new, ignores):
     old.func_code = new.func_code
     old.func_doc = new.func_doc
     old.func_defaults = new.func_defaults
+    old.func_dict = new.func_dict
     _swap_refs(old, new, ignores)
 
+
+
+def _unimport_module(old, filename, ignores):
+    """Try to remove traces of reimported module after failure"""
+    __internal_swaprefs_ignore__ = "unimport_module"
+    oldVars = vars(old)
+    ignores += (id(oldVars),)
+
+    for name, value in oldVars.iteritems():
+        try: objfile = inspect.getsourcefile(value)
+        except TypeError: objfile = ""
+        
+        if objfile == filename:
+            if inspect.isclass(value):
+                _unimport_class(value, ignores)
+
+        _remove_refs(value, ignores)
+        delattr(old, name)
     
+    _remove_refs(old, ignores)
+
+
+
+def _unimport_class(old, ignores):
+    """Try to remove traces of reimported class after failure"""
+    __internal_swaprefs_ignore__ = "unimport_class"    
+    oldVars = vars(old)
+    ignores += (id(oldVars),)    
+
+    for name, value in oldVars.iteritems():
+        if name in ("__dict__", "__doc__", "__weakref__"):
+            continue
+
+        _remove_refs(value, ignores)
+        delattr(old, name)
+
+    _remove_refs(old, ignores)
+
+
 
 _recursive_tuple_swap = set()
+
 
 
 def _swap_refs(old, new, ignores):
@@ -317,11 +348,6 @@ def _swap_refs(old, new, ignores):
             for oldRef in refs:
                 _swap_refs(oldRef, newRef, ignores + (id(refs),))
     del refs
-
-    # find the 'instance' old style type
-    class OldClass: pass
-    instance = type(OldClass())
-    del OldClass
 
     # Swap through garbage collector
     referrers = gc.get_referrers(old)
@@ -378,7 +404,7 @@ def _swap_refs(old, new, ignores):
         elif type(container) is old:
             container.__class__ = new
         
-        elif containerType is instance:
+        elif containerType is _InstanceType:
             if container.__class__ is old:
                 container.__class__ = new
 
@@ -386,7 +412,14 @@ def _swap_refs(old, new, ignores):
 
 def _remove_refs(old, ignores):
     """Remove references to a discontinued object"""
-    __internal_swaprefs_ignore__ = "remove_refs"    
+    __internal_swaprefs_ignore__ = "remove_refs"
+    
+    # Ignore builtin immutables that keep no other references
+    _isinst = isinstance
+    if (old is None or _isinst(old, int) or _isinst(old, basestring)
+                or _isinst(old, float) or _isinst(old, complex)):
+        return
+    
     # Remove through garbage collector
     for container in gc.get_referrers(old):
         if id(container) in ignores:
@@ -421,3 +454,18 @@ def _remove_refs(old, ignores):
         elif containerType == set:
             container.remove(old)
             
+        elif containerType == type:
+            if old in container.__bases__:
+                bases = list(container.__bases__)
+                bases.remove(old)
+                container.__bases__ = tuple(bases)
+        
+        elif type(container) is old:
+            container.__class__ = old.__bases__[0]
+            _remove_refs(container, ignores)
+        
+        elif containerType is _InstanceType:
+            if container.__class__ is old:
+                if container.__class__.__bases__:
+                    container.__class__ = container.__class__.__bases__[0]
+                _remove_refs(container, ignores)
