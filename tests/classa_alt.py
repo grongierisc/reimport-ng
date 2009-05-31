@@ -11,3 +11,10 @@ class ClassA(object):
     
 objA = ClassA()
 
+
+def __reimported__(old):
+    print "classa being reimported, from:", old
+    return True
+
+
+#klass SYNTAXERR(x): pass

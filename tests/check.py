@@ -4,6 +4,7 @@ import shutil
 import weakref
 import time
 sys.path.insert(0, os.path.dirname(__file__))
+import reimport
 
 shutil.copy("tests/classa_orig.py", "tests/classa.py")
 os.system("rm tests/*.pyc")
@@ -44,15 +45,23 @@ weakd[1].runA()
 print len(goners)#, goners
 
 
-time.sleep(1)
+
+#time.sleep(1)
 shutil.copy("tests/classa_alt.py", "tests/classa.py")
 os.system("rm tests/*.pyc")
 
 
-import reimport
 changed = reimport.modified(os.path.dirname(__file__))
 print "Changed modules:", changed
-reimport.reimport(*changed)
+if not changed:
+    changed.append(classa)
+try:
+    reimport.reimport(*changed)
+except Exception, e:
+    print "ROLLBACK BECAUSE OF:", e
+    import traceback
+    traceback.print_exc()
+    #raise
 
 
 print (classa.objA.__doc__, classa.objA.runA.__doc__)
