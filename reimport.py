@@ -48,6 +48,22 @@ del _OldClass
 def reimport(*modules):
     """Reimport python modules. Multiple modules can be passed either by
         name or by reference. Only pure python modules can be reimported.
+        
+        For advanced control, global variables can be placed in modules
+        that allows finer control of the reimport process.
+        
+        If a package module has a true value for "__package_reimport__"
+        then that entire package will be reimported when any of its children
+        packages or modules are reimported.
+        
+        If a package module defines __reimported__ it must be a callable
+        function that accepts one argument and returns a bool. The argument
+        is the reference to the old version of that module before any
+        cleanup has happend. The function should normally return True to
+        allow the standard reimport cleanup. If the function returns false
+        then cleanup will be disabled for only that module. Any exceptions
+        raised during the callback will be handled by traceback.print_exc,
+        similar to what happens with tracebacks in the __del__ method.
         """
     __internal_swaprefs_ignore__ = "reimport"
     reloadSet = set()
@@ -124,9 +140,12 @@ def reimport(*modules):
 
 def modified(path=None):
     """Find loaded modules that have changed on disk under the given path.
-        If no path is given then all modules are searched. This cannot 
-        detect modules that have changed before the reimport module was
-        actually imported.
+        If no path is given then all modules are searched.
+        
+        This cannot detect modules that have changed before the reimport
+        module was actually imported. The reimport module should be
+        imported early in a process if modified is intended to find all
+        changes.
         """
     global _previous_scan_time
     modules = []
