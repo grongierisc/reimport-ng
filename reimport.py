@@ -31,6 +31,7 @@ import os
 import gc
 import inspect
 import weakref
+import traceback
 import time
 
 
@@ -70,6 +71,7 @@ def reimport(*modules):
     oldModules = {}
     for name in reloadNames:
         oldModules[name] = sys.modules.pop(name)
+    ignores = (id(oldModules),)
     prevNames = set(sys.modules)
 
     # Reimport modules, trying to rollback on exceptions
@@ -83,24 +85,40 @@ def reimport(*modules):
         newNames = set(sys.modules) - prevNames
         newNames = _package_depth_sort(newNames, True)
         for name in newNames:
-            _unimport_module(sys.modules.pop(name))
+            _unimport_module(sys.modules[name], ignores)
+            assert name not in sys.modules
+
         sys.modules.update(oldModules)
         raise
 
+    newNames = set(sys.modules) - prevNames
+    newNames = _package_depth_sort(newNames, True)
+
     # Update timestamps for loaded time
     now = time.time() - 1.0
-    for name in reloadNames:
+    for name in newNames:
         _module_timestamps[name] = now
 
     # Rejigger the universe
-    ignores = (id(oldModules), )
-    for name in reversed(reloadNames):
-        old = oldModules[name]
+    for name in newNames:
+        old = oldModules.get(name)
+        if not old:
+            continue
         new = sys.modules[name]
-        filename = new.__file__
-        if filename.endswith(".pyo") or filename.endswith(".pyc"):
-            filename = filename[:-1]
-        _rejigger_module(old, new, filename, ignores)
+        rejigger = True
+        reimported = getattr(new, "__reimported__", None)
+        if reimported:
+            try:
+                rejigger = reimported(old)
+            except:
+                # What else can we do? the callbacks must go on
+                # Note, this is same as __del__ behaviour. /shrug
+                traceback.print_exc()
+
+        if rejigger:
+            _rejigger_module(old, new, ignores)
+        else:
+            _unimport_module(new, ignores)
 
 
 
@@ -213,13 +231,19 @@ def _package_depth_sort(names, reverse):
 # and then to swap external references from old to new
 
 
-def _rejigger_module(old, new, filename, ignores):
+def _rejigger_module(old, new, ignores):
     """Mighty morphin power modules"""
     __internal_swaprefs_ignore__ = "rejigger_module"
     oldVars = vars(old)
     newVars = vars(new)
     ignores += (id(oldVars),)
     old.__doc__ = new.__doc__
+
+    # Get filename used by python code
+    filename = new.__file__
+    fileext = os.path.splitext(filename)
+    if fileext in (".pyo", ".pyc", ".pyw"):
+        filename = filename[:-1]
 
     for name, value in newVars.iteritems():
         try: objfile = inspect.getsourcefile(value)
@@ -241,8 +265,9 @@ def _rejigger_module(old, new, filename, ignores):
 
     for name in oldVars.keys():
         if name not in newVars:
-            _remove_refs(getattr(old, name), ignores)
+            value = getattr(old, name)
             delattr(old, name)
+            _remove_refs(value, ignores)
     
     _swap_refs(old, new, ignores)
 
@@ -274,8 +299,9 @@ def _rejigger_class(old, new, ignores):
     
     for name in oldVars.keys():
         if name not in newVars:
-            _remove_refs(getattr(old, name), ignores)
+            value = getattr(old, name)
             delattr(old, name)
+            _remove_refs(value, ignores)
 
     _swap_refs(old, new, ignores)
 
@@ -292,41 +318,52 @@ def _rejigger_func(old, new, ignores):
 
 
 
-def _unimport_module(old, filename, ignores):
-    """Try to remove traces of reimported module after failure"""
+def _unimport_module(old, ignores):
+    """Remove traces of a module"""
     __internal_swaprefs_ignore__ = "unimport_module"
-    oldVars = vars(old)
-    ignores += (id(oldVars),)
+    oldItems = vars(old).items()
+    ignores += (id(oldItems),)    
 
-    for name, value in oldVars.iteritems():
+    # Get filename used by python code
+    filename = old.__file__
+    fileext = os.path.splitext(filename)
+    if fileext in (".pyo", ".pyc", ".pyw"):
+        filename = filename[:-1]
+
+    for name, value in oldItems:
         try: objfile = inspect.getsourcefile(value)
         except TypeError: objfile = ""
         
         if objfile == filename:
             if inspect.isclass(value):
                 _unimport_class(value, ignores)
+                
+            elif inspect.isfunction(value):
+                _remove_refs(value, ignores)
 
-        _remove_refs(value, ignores)
-        delattr(old, name)
-    
     _remove_refs(old, ignores)
 
 
 
 def _unimport_class(old, ignores):
-    """Try to remove traces of reimported class after failure"""
+    """Remove traces of a class"""
     __internal_swaprefs_ignore__ = "unimport_class"    
-    oldVars = vars(old)
-    ignores += (id(oldVars),)    
+    oldItems = vars(old).items()
+    ignores += (id(oldItems),)    
 
-    for name, value in oldVars.iteritems():
+    for name, value in oldItems:
         if name in ("__dict__", "__doc__", "__weakref__"):
             continue
 
-        _remove_refs(value, ignores)
-        delattr(old, name)
+        if inspect.isclass(value) and value.__module__ == old.__module__:
+            _rejigger_class(value, ignores)
+            
+        elif inspect.isfunction(value):
+            _remove_refs(value, ignores)
 
     _remove_refs(old, ignores)
+
+
 
 
 
@@ -385,8 +422,11 @@ def _swap_refs(old, new, ignores):
         
         elif containerType is dict:
             if "__internal_swaprefs_ignore__" not in container:
-                if old in container:
-                    container[new] = container.pop(old)
+                try:
+                    if old in container:
+                        container[new] = container.pop(old)
+                except TypeError:  # Unhashable old value
+                    pass
                 for k,v in container.iteritems():
                     if v is old:
                         container[k] = new
@@ -445,27 +485,15 @@ def _remove_refs(old, ignores):
             _swap_refs(orig, container, ignores)
         
         elif containerType == dict:
-            if old in container:
-                container.pop(old)
-            for k,v in container.items():
-                if v is old:
-                    del container[k]
+            if "__internal_swaprefs_ignore__" not in container:
+                try:
+                    if old in container:
+                        container.pop(old)
+                except TypeError:  # Unhashable old value
+                    pass
+                for k,v in container.items():
+                    if v is old:
+                        del container[k]
 
         elif containerType == set:
             container.remove(old)
-            
-        elif containerType == type:
-            if old in container.__bases__:
-                bases = list(container.__bases__)
-                bases.remove(old)
-                container.__bases__ = tuple(bases)
-        
-        elif type(container) is old:
-            container.__class__ = old.__bases__[0]
-            _remove_refs(container, ignores)
-        
-        elif containerType is _InstanceType:
-            if container.__class__ is old:
-                if container.__class__.__bases__:
-                    container.__class__ = container.__class__.__bases__[0]
-                _remove_refs(container, ignores)
