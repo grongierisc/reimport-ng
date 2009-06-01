@@ -83,6 +83,25 @@ def reimport(*modules):
     # Sort module names 
     reloadNames = _package_depth_sort(reloadSet, False)
 
+    # Check for SyntaxErrors ahead of time. This won't catch all
+    # possible SyntaxErrors or any other ImportErrors. But these
+    # should be the most common problems, and now is the cleanest
+    # time to abort.
+    # I know this gets compiled again anyways. It could be
+    # avoided with py_compile, but I will not be the creator
+    # of .pyc files, evar!
+    for name in reloadNames:
+        filename = getattr(sys.modules[name], "__file__", None)
+        if not filename:
+            continue
+        pyname = os.path.splitext(filename)[0] + ".py"
+        try:
+            data = open(pyname, "rU").read() + "\n"
+        except (IOError, OSError):
+            continue
+        
+        compile(data, pyname, "exec", 0, False)  # Let this raise exceptions
+
     # Move modules out of sys
     oldModules = {}
     for name in reloadNames:
