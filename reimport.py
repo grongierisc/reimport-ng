@@ -38,6 +38,7 @@ import time
 _previous_scan_time = time.time() - 1.0
 _module_timestamps = {}
 
+
 # find the 'instance' old style type
 class _OldClass: pass
 _InstanceType = type(_OldClass())
@@ -68,13 +69,14 @@ def reimport(*modules):
     __internal_swaprefs_ignore__ = "reimport"
     reloadSet = set()
 
+    if not modules:
+        return
+
     # Get names of all modules being reloaded
     for module in modules:
         name, target = _find_exact_target(module)
         if not target:
             raise ValueError("Module %r not found" % module)
-        if inspect.isbuiltin(target):
-            raise ValueError("Cannot reimport builtin, %r" % name)
         if not _is_code_module(target):
             raise ValueError("Cannot reimport extension, %r" % name)
 
@@ -89,7 +91,7 @@ def reimport(*modules):
     # time to abort.
     # I know this gets compiled again anyways. It could be
     # avoided with py_compile, but I will not be the creator
-    # of .pyc files, evar!
+    # of messy .pyc files!
     for name in reloadNames:
         filename = getattr(sys.modules[name], "__file__", None)
         if not filename:
@@ -101,6 +103,8 @@ def reimport(*modules):
             continue
         
         compile(data, pyname, "exec", 0, False)  # Let this raise exceptions
+
+    # XXX need to remove extensions out of the list now
 
     # Move modules out of sys
     oldModules = {}
@@ -132,7 +136,7 @@ def reimport(*modules):
     # Update timestamps for loaded time
     now = time.time() - 1.0
     for name in newNames:
-        _module_timestamps[name] = now
+        _module_timestamps[name] = (now, True)
 
     # Rejigger the universe
     for name in newNames:
@@ -171,29 +175,35 @@ def modified(path=None):
     
     if path:
         path = os.path.normpath(path) + os.sep
+        
+    defaultTime = (_previous_scan_time, False)
+    pycExt = __debug__ and ".pyc" or ".pyo"
     
     for name, module in sys.modules.items():
         filename = _is_code_module(module)
         if not filename:
             continue
 
-        prevTime = _module_timestamps.setdefault(name, _previous_scan_time)
-        filename = os.path.normpath(os.path.abspath(filename))
+        filename = os.path.normpath(filename)
+        prevTime, prevScan = _module_timestamps.setdefault(name, defaultTime)
         if path and not filename.startswith(path):
             continue
 
-        # Check file timestamp, give priority to filename with .py
-        filename, extension = os.path.splitext(filename)
-        try:
-            diskTime = os.path.getmtime(filename + ".py")
-        except OSError:
-            if extension != ".py":
+        # Get timestamp of .pyc if this is first time checking this module
+        if not prevScan:
+            pycName = os.path.splitext(filename)[0] + pycExt
+            if pycName != filename:
                 try:
-                    diskTime = os.path.getmtime(filename + extension)
+                    prevTime = os.path.getmtime(pycName)
                 except OSError:
-                    diskTime = None
-            else:
-                diskTime = None
+                    pass
+            _module_timestamps[name] = (prevTime, True)
+
+        # Get timestamp of source file
+        try:
+            diskTime = os.path.getmtime(filename)
+        except OSError:
+            diskTime = None
                 
         if diskTime is not None and prevTime < diskTime:
             modules.append(name)
@@ -205,14 +215,11 @@ def modified(path=None):
 
 def _is_code_module(module):
     """Determine if a module comes from python code"""
+    # getsourcefile will not return "bare" pyc modules. we can reload those?
     try:
-        filename = inspect.getsourcefile(module) or "x.notfound"
-    except StandardError:
-        filename = ""
-    extension = os.path.splitext(filename)[1]
-    if extension in (".py", ".pyc", ".pyo"):
-        return filename
-    return ""
+        return inspect.getsourcefile(module) or ""
+    except TypeError:
+        return ""
 
 
 
