@@ -22,6 +22,20 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+"""
+This module intends to be a full featured replacement for Python's reload
+function. It is targeted towards making a reload that works for Python
+plugins and extensions used by longer running applications.
+
+Reimport currently supports Python 2.4 through 2.6.
+
+By its very nature, this is not a completely solvable problem. The goal of
+this module is to make the most common sorts of updates work well. It also
+allows individual modules and package to assist in the process. A more
+detailed description of what happens is at
+http://code.google.com/p/reimport .
+"""
+
 
 __all__ = ["reimport", "modified"]
 
@@ -33,6 +47,14 @@ import inspect
 import weakref
 import traceback
 import time
+
+
+
+__version__ = "1.0"
+__author__ = "Peter Shinners <pete@shinners.org>"
+__license__ = "MIT"
+__url__ = "http://code.google.com/p/reimport"
+
 
 
 _previous_scan_time = time.time() - 1.0
@@ -104,8 +126,6 @@ def reimport(*modules):
         
         compile(data, pyname, "exec", 0, False)  # Let this raise exceptions
 
-    # XXX need to remove extensions out of the list now
-
     # Move modules out of sys
     oldModules = {}
     for name in reloadNames:
@@ -149,7 +169,7 @@ def reimport(*modules):
         if reimported:
             try:
                 rejigger = reimported(old)
-            except:
+            except StandardError:
                 # What else can we do? the callbacks must go on
                 # Note, this is same as __del__ behaviour. /shrug
                 traceback.print_exc()
@@ -164,11 +184,6 @@ def reimport(*modules):
 def modified(path=None):
     """Find loaded modules that have changed on disk under the given path.
         If no path is given then all modules are searched.
-        
-        This cannot detect modules that have changed before the reimport
-        module was actually imported. The reimport module should be
-        imported early in a process if modified is intended to find all
-        changes.
         """
     global _previous_scan_time
     modules = []
@@ -366,8 +381,8 @@ def _rejigger_func(old, new, ignores):
 def _unimport_module(old, ignores):
     """Remove traces of a module"""
     __internal_swaprefs_ignore__ = "unimport_module"
-    oldItems = vars(old).items()
-    ignores += (id(oldItems),)    
+    oldValues = vars(old).values()
+    ignores += (id(oldValues),)    
 
     # Get filename used by python code
     filename = old.__file__
@@ -375,7 +390,7 @@ def _unimport_module(old, ignores):
     if fileext in (".pyo", ".pyc", ".pyw"):
         filename = filename[:-1]
 
-    for name, value in oldItems:
+    for value in oldValues:
         try: objfile = inspect.getsourcefile(value)
         except TypeError: objfile = ""
         
@@ -401,7 +416,7 @@ def _unimport_class(old, ignores):
             continue
 
         if inspect.isclass(value) and value.__module__ == old.__module__:
-            _rejigger_class(value, ignores)
+            _unimport_class(value, ignores)
             
         elif inspect.isfunction(value):
             _remove_refs(value, ignores)
