@@ -26,6 +26,14 @@
 This module intends to be a full featured replacement for Python's reload
 function. It is targeted towards making a reload that works for Python
 plugins and extensions used by longer running applications.
+
+Reimport currently supports Python 2.4 through 2.6.
+
+By its very nature, this is not a completely solvable problem. The goal of
+this module is to make the most common sorts of updates work well. It also
+allows individual modules and package to assist in the process. A more
+detailed description of what happens is at
+http://code.google.com/p/reimport .
 """
 
 
@@ -42,10 +50,9 @@ import time
 
 
 
-__version__ = "0.9"
+__version__ = "1.0"
 __author__ = "Peter Shinners <pete@shinners.org>"
 __license__ = "MIT"
-__copyright__ = "Copyright (c) 2009 Peter Shinners"
 __url__ = "http://code.google.com/p/reimport"
 
 
@@ -162,7 +169,7 @@ def reimport(*modules):
         if reimported:
             try:
                 rejigger = reimported(old)
-            except:
+            except StandardError:
                 # What else can we do? the callbacks must go on
                 # Note, this is same as __del__ behaviour. /shrug
                 traceback.print_exc()
@@ -177,11 +184,6 @@ def reimport(*modules):
 def modified(path=None):
     """Find loaded modules that have changed on disk under the given path.
         If no path is given then all modules are searched.
-        
-        This cannot detect modules that have changed before the reimport
-        module was actually imported. The reimport module should be
-        imported early in a process if modified is intended to find all
-        changes.
         """
     global _previous_scan_time
     modules = []
@@ -414,7 +416,7 @@ def _unimport_class(old, ignores):
             continue
 
         if inspect.isclass(value) and value.__module__ == old.__module__:
-            _rejigger_class(value, ignores)
+            _unimport_class(value, ignores)
             
         elif inspect.isfunction(value):
             _remove_refs(value, ignores)
