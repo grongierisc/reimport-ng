@@ -9,7 +9,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 shutil.copy("tests/classa_orig.py", "tests/classa.py")
 #os.system("rm tests/*.pyc")
 
-import classa, classb
+import tests.classb as classb
+import tests as classa
+
 obj = classa.objA
 meth = classa.objA.runA
 ref = weakref.ref(classa.objA)
@@ -28,7 +30,7 @@ HOLDER2.c = classa.ClassA
 HOLDER2.o = classa.objA
 HOLDER3.c = classa.ClassA
 HOLDER3.o = classa.objA
-goners = ["BUTROS", classa.objA.onlyOrigA, classa.ClassA.onlyOrigA]
+goners = ["BUTROS", classa.objA.onlyOrigA, classa.ClassA.__dict__["onlyOrigA"]]
 
 
 print (classa.objA.__doc__, classa.objA.runA.__doc__)

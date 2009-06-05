@@ -11,6 +11,8 @@ class ClassA(object):
     
 objA = ClassA()
 
+ModStatic1 = 22
+ModStatic3 = 1.0
 
 def __reimported__(old):
     print "classa being reimported, from:", old

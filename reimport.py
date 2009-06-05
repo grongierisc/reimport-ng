@@ -158,6 +158,20 @@ def reimport(*modules):
     for name in newNames:
         _module_timestamps[name] = (now, True)
 
+    # Push exported namespaces into parent packages
+    pushSymbols = {}
+    for name in newNames:
+        oldModule = oldModules.get(name)
+        if not oldModule:
+            continue
+        parents = _find_parent_importers(name, oldModule, newNames)
+        pushSymbols[name] = parents
+    for name, parents in pushSymbols.iteritems():
+        for parent in parents:
+            oldModule = oldModules[name]
+            newModule = sys.modules[name]
+            _push_imported_symbols(newModule, oldModule, parent)
+
     # Rejigger the universe
     for name in newNames:
         old = oldModules.get(name)
@@ -285,6 +299,63 @@ def _package_depth_sort(names, reverse):
         return name.count(".")
     return sorted(names, key=packageDepth, reverse=reverse)
 
+
+
+def _find_module_exports(module):
+    all = getattr(module, "__all__", ())
+    if not all:
+        all = [n for n in dir(module) if n[0] != "_"]
+    return set(all)
+
+
+
+def _find_parent_importers(name, oldModule, newNames):
+    """Find parents of reimported module that have all exported symbols"""
+    parents = []
+
+    # Get exported symbols
+    exports = _find_module_exports(oldModule)
+    if not exports:
+        return parents
+
+    # Find non-reimported parents that have all old symbols
+    parent = name
+    while True:
+        names = parent.rsplit(".", 1)
+        if len(names) <= 1:
+            break
+        parent = names[0]
+        if parent in newNames:
+            continue
+        parentModule = sys.modules[parent]
+        if not exports - set(dir(parentModule)):
+            parents.append(parentModule)
+    
+    return parents
+
+
+def _push_imported_symbols(newModule, oldModule, parent):
+    """Transfer changes symbols from a child module to a parent package"""
+    # This assumes everything in oldModule is already found in parent
+    oldExports = _find_module_exports(oldModule)
+    newExports = _find_module_exports(newModule)
+
+    print "PUSH CHILD", newModule.__name__, "to", parent.__name__
+    
+    # Delete missing symbols
+    for name in oldExports - newExports:
+        delattr(parent, name)
+    
+    # Add new symbols
+    for name in newExports - oldExports:
+        setattr(parent, name, getattr(newModule, name))
+    
+    # Update existing symbols
+    for name in newExports & oldExports:
+        oldValue = getattr(oldModule, name)
+        if getattr(parent, name) is oldValue:
+            setattr(parent, name, getattr(newModule, name))
+    
 
 
 # To rejigger is to copy internal values from new to old
