@@ -340,8 +340,6 @@ def _push_imported_symbols(newModule, oldModule, parent):
     oldExports = _find_module_exports(oldModule)
     newExports = _find_module_exports(newModule)
 
-    print "PUSH CHILD", newModule.__name__, "to", parent.__name__
-    
     # Delete missing symbols
     for name in oldExports - newExports:
         delattr(parent, name)
@@ -493,8 +491,6 @@ def _unimport_class(old, ignores):
             _remove_refs(value, ignores)
 
     _remove_refs(old, ignores)
-
-
 
 
 
