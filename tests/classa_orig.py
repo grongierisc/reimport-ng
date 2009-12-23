@@ -1,5 +1,6 @@
 print "--ORIGINAL A MODULE IMPORTED"
 
+import time
 
 
 class ClassA(object):

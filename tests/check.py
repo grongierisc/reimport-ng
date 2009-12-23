@@ -3,7 +3,7 @@ import sys
 import shutil
 import weakref
 import time
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 #import reimport
 
 shutil.copy("tests/classa_orig.py", "tests/classa.py")
@@ -52,8 +52,13 @@ time.sleep(1)
 shutil.copy("tests/classa_alt.py", "tests/classa.py")
 #os.system("rm tests/*.pyc")
 
+ENSURE_NOT_DELETED = "thirteen"
 
 import reimport
+
+print "TIME:", getattr(reimport, "time", None)
+print "ENSURE:", ENSURE_NOT_DELETED
+
 changed = reimport.modified()# os.path.dirname(__file__))
 print "Changed modules:", changed
 #if not changed:
@@ -65,6 +70,10 @@ except Exception, e:
     import traceback
     traceback.print_exc()
     #raise
+
+print "TIME:", getattr(reimport, "time", None)
+print "ENSURE:", ENSURE_NOT_DELETED
+
 
 
 print (classa.objA.__doc__, classa.objA.runA.__doc__)
