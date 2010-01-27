@@ -404,7 +404,7 @@ def _from_file(filename, value):
         objfile = inspect.getsourcefile(value)
     except TypeError:
         return False
-    return objfile.startswith(filename)
+    return bool(objfile) and objfile.startswith(filename)
 
 
 
