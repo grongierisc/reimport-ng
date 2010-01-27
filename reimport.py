@@ -50,7 +50,7 @@ import time
 
 
 
-__version__ = "1.0"
+__version__ = "1.1"
 __author__ = "Peter Shinners <pete@shinners.org>"
 __license__ = "MIT"
 __url__ = "http://code.google.com/p/reimport"
@@ -371,19 +371,14 @@ def _rejigger_module(old, new, ignores):
     # Get filename used by python code
     filename = new.__file__
     fileext = os.path.splitext(filename)
-    if fileext in (".pyo", ".pyc", ".pyw"):
-        filename = filename[:-1]
 
     for name, value in newVars.iteritems():
-        try: objfile = inspect.getsourcefile(value)
-        except TypeError: objfile = ""
-        
         if name in oldVars:
             oldValue = oldVars[name]
             if oldValue is value:
                 continue
 
-            if objfile == filename:
+            if _from_file(filename, value):
                 if inspect.isclass(value):
                     _rejigger_class(oldValue, value, ignores)
                     
@@ -396,9 +391,20 @@ def _rejigger_module(old, new, ignores):
         if name not in newVars:
             value = getattr(old, name)
             delattr(old, name)
-            _remove_refs(value, ignores)
+            if _from_file(filename, value):
+                _remove_refs(value, ignores)
     
     _swap_refs(old, new, ignores)
+
+
+
+def _from_file(filename, value):
+    """Test if object came from a filename, works for pyc/py confusion"""
+    try:
+        objfile = inspect.getsourcefile(value)
+    except TypeError:
+        return False
+    return bool(objfile) and objfile.startswith(filename)
 
 
 
