@@ -52,12 +52,15 @@ time.sleep(1)
 shutil.copy("tests/classa_alt.py", "tests/classa.py")
 #os.system("rm tests/*.pyc")
 
-ENSURE_NOT_DELETED = "thirteen"
+ENSURE_NOT_DELETED1 = "thirteen"
+ENSURE_NOT_DELETED2 = True
+ENSURE_NOT_DELETED3 = False
+ENSURE_NOT_DELETED4 = None
 
 import reimport
 
 print "TIME:", getattr(reimport, "time", None)
-print "ENSURE:", ENSURE_NOT_DELETED
+print "ENSURE:", ENSURE_NOT_DELETED1, ENSURE_NOT_DELETED2, ENSURE_NOT_DELETED3, ENSURE_NOT_DELETED4
 
 changed = reimport.modified()# os.path.dirname(__file__))
 print "Changed modules:", changed
@@ -72,7 +75,7 @@ except Exception, e:
     #raise
 
 print "TIME:", getattr(reimport, "time", None)
-print "ENSURE:", ENSURE_NOT_DELETED
+print "ENSURE:", ENSURE_NOT_DELETED1, ENSURE_NOT_DELETED2, ENSURE_NOT_DELETED3, ENSURE_NOT_DELETED4
 
 
 

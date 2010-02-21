@@ -16,6 +16,9 @@ class ClassA(object):
 
 ModStatic1 = 13
 ModStatic2 = "thirteen"
+WillItDelete1 = None
+WillItDelete2 = True
+WillItDelete3 = False
 
     
 objA = ClassA()

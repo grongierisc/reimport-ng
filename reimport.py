@@ -130,7 +130,7 @@ def reimport(*modules):
     oldModules = {}
     for name in reloadNames:
         oldModules[name] = sys.modules.pop(name)
-    ignores = (id(oldModules),)
+    ignores = (id(oldModules), id(__builtins__))
     prevNames = set(sys.modules)
 
     # Reimport modules, trying to rollback on exceptions
@@ -392,7 +392,8 @@ def _rejigger_module(old, new, ignores):
             value = getattr(old, name)
             delattr(old, name)
             if _from_file(filename, value):
-                _remove_refs(value, ignores)
+                if inspect.isclass(value) or inspect.isfunction(value):
+                    _remove_refs(value, ignores)
     
     _swap_refs(old, new, ignores)
 
