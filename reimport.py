@@ -1,5 +1,5 @@
 # MIT Licensed
-# Copyright (c) 2009 Peter Shinners <pete@shinners.org> 
+# Copyright (c) 2009-2010 Peter Shinners <pete@shinners.org> 
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -50,7 +50,7 @@ import time
 
 
 
-__version__ = "1.1"
+__version__ = "1.2"
 __author__ = "Peter Shinners <pete@shinners.org>"
 __license__ = "MIT"
 __url__ = "http://code.google.com/p/reimport"
