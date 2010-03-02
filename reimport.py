@@ -133,6 +133,14 @@ def reimport(*modules):
     ignores = (id(oldModules), id(__builtins__))
     prevNames = set(sys.modules)
 
+    # Python will munge the parent package on import. Remember original value
+    parentPackageName = name.rsplit(".", 1)
+    parentPackage = None
+    parentPackageDeleted = lambda: None
+    if len(parentPackageName) == 2:
+        parentPackage = sys.modules.get(parentPackageName[0], None)
+        parentValue = getattr(parentPackage, parentPackageName[1], parentPackageDeleted)
+
     # Reimport modules, trying to rollback on exceptions
     try:
         for name in reloadNames:
@@ -157,6 +165,14 @@ def reimport(*modules):
     now = time.time() - 1.0
     for name in newNames:
         _module_timestamps[name] = (now, True)
+
+    # Fix Python automatically shoving of children into parent packages
+    if parentPackage and parentValue:
+        if parentValue == parentPackageDeleted:
+            delattr(parentPackage, parentPackageName[1])
+        else:
+            setattr(parentPackage, parentPackageName[1], parentValue)
+    parentValue = parentPackage = parentPackageDeleted = None 
 
     # Push exported namespaces into parent packages
     pushSymbols = {}
