@@ -521,6 +521,17 @@ _recursive_tuple_swap = set()
 
 
 
+def _find_sequence_indices(container, value):
+    """Find indices of value in container. The indices will
+        be in reverse order, to allow safe editing.
+        """
+    indices = []
+    for i in range(len(container)-1, -1, -1):
+        if container[i] is value:
+            indices.append(i)
+    return indices
+
+
 def _swap_refs(old, new, ignores):
     """Swap references from one object to another"""
     __internal_swaprefs_ignore__ = "swap_refs"    
@@ -544,11 +555,7 @@ def _swap_refs(old, new, ignores):
         containerType = type(container)
         
         if containerType is list:
-            while True:
-                try:
-                    index = container.index(old)
-                except ValueError:
-                    break
+            for index in _find_sequence_indices(container, old):
                 container[index] = new
         
         elif containerType is tuple:
@@ -559,11 +566,7 @@ def _swap_refs(old, new, ignores):
             _recursive_tuple_swap.add(id(orig))
             try:
                 container = list(container)
-                while True:
-                    try:
-                        index = container.index(old)
-                    except ValueError:
-                        break
+                for index in _find_sequence_indices(container, old):
                     container[index] = new
                 container = tuple(container)
                 _swap_refs(orig, container, ignores + (id(referrers),))
@@ -617,28 +620,21 @@ def _remove_refs(old, ignores):
         containerType = type(container)
 
         if containerType == list:
-            while True:
-                try:
-                    container.remove(old)
-                except ValueError:
-                    break
+            for index in _find_sequence_indices(container, old):
+                del container[index]
         
         elif containerType == tuple:
             orig = container
             container = list(container)
-            while True:
-                try:
-                    container.remove(old)
-                except ValueError:
-                    break
+            for index in _find_sequence_indices(container, old):
+                del container[index]
             container = tuple(container)
             _swap_refs(orig, container, ignores)
         
         elif containerType == dict:
             if "__internal_swaprefs_ignore__" not in container:
                 try:
-                    if old in container:
-                        container.pop(old)
+                    container.pop(old, None)
                 except TypeError:  # Unhashable old value
                     pass
                 for k,v in container.items():
