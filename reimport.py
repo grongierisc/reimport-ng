@@ -318,10 +318,10 @@ def _package_depth_sort(names, reverse):
 
 
 def _find_module_exports(module):
-    all = getattr(module, "__all__", ())
-    if not all:
-        all = [n for n in dir(module) if n[0] != "_"]
-    return set(all)
+    allNames = getattr(module, "__all__", ())
+    if not allNames:
+        allNames = [n for n in dir(module) if n[0] != "_"]
+    return set(allNames)
 
 
 
@@ -386,7 +386,6 @@ def _rejigger_module(old, new, ignores):
 
     # Get filename used by python code
     filename = new.__file__
-    fileext = os.path.splitext(filename)
 
     for name, value in newVars.iteritems():
         if name in oldVars:
@@ -520,6 +519,19 @@ def _unimport_class(old, ignores):
 _recursive_tuple_swap = set()
 
 
+def _bonus_containers():
+    """Find additional container types, if they are loaded. Returns
+        (deque, defaultdict).
+        Any of these will be None if not loaded. 
+        """
+    deque = defaultdict = None
+    collections = sys.modules.get("collections", None)
+    if collections:
+        deque = getattr(collections, "collections", None)
+        defaultdict = getattr(collections, "defaultdict", None)
+    return deque, defaultdict
+
+
 
 def _find_sequence_indices(container, value):
     """Find indices of value in container. The indices will
@@ -547,6 +559,8 @@ def _swap_refs(old, new, ignores):
                 _swap_refs(oldRef, newRef, ignores + (id(refs),))
     del refs
 
+    deque, defaultdict = _bonus_containers()
+
     # Swap through garbage collector
     referrers = gc.get_referrers(old)
     for container in referrers:
@@ -554,7 +568,7 @@ def _swap_refs(old, new, ignores):
             continue
         containerType = type(container)
         
-        if containerType is list:
+        if containerType is list or containerType is deque:
             for index in _find_sequence_indices(container, old):
                 container[index] = new
         
@@ -573,7 +587,7 @@ def _swap_refs(old, new, ignores):
             finally:
                 _recursive_tuple_swap.remove(id(orig))
         
-        elif containerType is dict:
+        elif containerType is dict or containerType is defaultdict:
             if "__internal_swaprefs_ignore__" not in container:
                 try:
                     if old in container:
@@ -587,8 +601,8 @@ def _swap_refs(old, new, ignores):
         elif containerType is set:
             container.remove(old)
             container.add(new)
-            
-        elif containerType == type:
+
+        elif containerType is type:
             if old in container.__bases__:
                 bases = list(container.__bases__)
                 bases[bases.index(old)] = new
@@ -608,10 +622,10 @@ def _remove_refs(old, ignores):
     __internal_swaprefs_ignore__ = "remove_refs"
     
     # Ignore builtin immutables that keep no other references
-    _isinst = isinstance
-    if (old is None or _isinst(old, int) or _isinst(old, basestring)
-                or _isinst(old, float) or _isinst(old, complex)):
+    if old is None or isinstance(old, (int, basestring, float, complex)):
         return
+
+    deque, defaultdict = _bonus_containers()
     
     # Remove through garbage collector
     for container in gc.get_referrers(old):
@@ -619,11 +633,11 @@ def _remove_refs(old, ignores):
             continue
         containerType = type(container)
 
-        if containerType == list:
+        if containerType is list or containerType is deque:
             for index in _find_sequence_indices(container, old):
                 del container[index]
         
-        elif containerType == tuple:
+        elif containerType is tuple:
             orig = container
             container = list(container)
             for index in _find_sequence_indices(container, old):
@@ -631,7 +645,7 @@ def _remove_refs(old, ignores):
             container = tuple(container)
             _swap_refs(orig, container, ignores)
         
-        elif containerType == dict:
+        elif containerType is dict or containerType is defaultdict:
             if "__internal_swaprefs_ignore__" not in container:
                 try:
                     container.pop(old, None)
@@ -641,5 +655,5 @@ def _remove_refs(old, ignores):
                     if v is old:
                         del container[k]
 
-        elif containerType == set:
+        elif containerType is set:
             container.remove(old)
