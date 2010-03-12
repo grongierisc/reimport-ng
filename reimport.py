@@ -143,20 +143,47 @@ def reimport(*modules):
 
     # Reimport modules, trying to rollback on exceptions
     try:
-        for name in reloadNames:
-            if name not in sys.modules:
-                __import__(name)
+        try:
+            for name in reloadNames:
+                if name not in sys.modules:
+                    __import__(name)
 
-    except StandardError:
-        # Try to dissolve any newly import modules and revive the old ones
-        newNames = set(sys.modules) - prevNames
-        newNames = _package_depth_sort(newNames, True)
-        for name in newNames:
-            _unimport_module(sys.modules[name], ignores)
-            assert name not in sys.modules
-
-        sys.modules.update(oldModules)
-        raise
+            # Test if __all__ has missing names that weren't missing before
+            newModule = sys.modules[name]
+            newAll = getattr(newModule, "__all__", ())
+            newMissingSymbols = [symbol for symbol in newAll if not hasattr(newModule, symbol)]
+            if newMissingSymbols:
+                oldModule = oldModules[name]
+                oldAll = getattr(oldModule, "__all__", ())
+                oldMissingSymbols = [symbol for symbol in oldAll if not hasattr(oldModule, symbol)]
+                missingSymbols = set(newMissingSymbols) - set(oldMissingSymbols)
+                if missingSymbols:
+                    raise AttributeError("Module %r is missing %r defined in __all__"
+                                % (name, missingSymbols.pop()))
+    
+        except StandardError:
+            # Try to dissolve any newly import modules and revive the old ones
+            newNames = set(sys.modules) - prevNames
+            newNames = _package_depth_sort(newNames, True)
+            for name in newNames:
+                _unimport_module(sys.modules[name], ignores)
+                assert name not in sys.modules
+    
+            sys.modules.update(oldModules)
+            raise
+        
+        
+    finally:
+        # Fix Python automatically shoving of children into parent packages
+        if parentPackage and parentValue:
+            if parentValue == parentPackageDeleted:
+                try:
+                    delattr(parentPackage, parentPackageName[1])
+                except AttributeError:
+                    pass
+            else:
+                setattr(parentPackage, parentPackageName[1], parentValue)
+        parentValue = parentPackage = parentPackageDeleted = None 
 
     newNames = set(sys.modules) - prevNames
     newNames = _package_depth_sort(newNames, True)
@@ -165,14 +192,6 @@ def reimport(*modules):
     now = time.time() - 1.0
     for name in newNames:
         _module_timestamps[name] = (now, True)
-
-    # Fix Python automatically shoving of children into parent packages
-    if parentPackage and parentValue:
-        if parentValue == parentPackageDeleted:
-            delattr(parentPackage, parentPackageName[1])
-        else:
-            setattr(parentPackage, parentPackageName[1], parentValue)
-    parentValue = parentPackage = parentPackageDeleted = None 
 
     # Push exported namespaces into parent packages
     pushSymbols = {}
