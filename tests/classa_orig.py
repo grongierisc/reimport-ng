@@ -32,6 +32,9 @@ class SlotA(object):
         self.two = 2
         self.three = 3
 
+    def getone(self):
+        return self.one
+
 
 slotA = SlotA()
 

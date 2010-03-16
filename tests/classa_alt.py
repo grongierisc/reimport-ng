@@ -20,6 +20,10 @@ class SlotA(object):
     def __init__(self):
         self.one = 11
         self.two = 22
+    
+    
+    def getone(self):
+        return self.one
 
 
 slotA = SlotA()

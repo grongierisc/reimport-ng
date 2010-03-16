@@ -455,8 +455,15 @@ def _rejigger_class(old, new, ignores):
     newVars = _safevars(new)
     ignores += (id(oldVars),)    
 
+    slotted = hasattr(old, "__slots__")
+    ignoreAttrs = ["__dict__", "__doc__", "__weakref__"]
+    if slotted:
+        ignoreAttrs.extend(getattr(old, "__slots__"))
+        ignoreAttrs.append("__slots__")
+    ignoreAttrs = tuple(ignoreAttrs)
+
     for name, value in newVars.iteritems():
-        if name in ("__dict__", "__doc__", "__weakref__"):
+        if name in ignoreAttrs:
             continue
 
         if name in oldVars:
@@ -644,7 +651,11 @@ def _swap_refs(old, new, ignores):
                 container.__bases__ = tuple(bases)
         
         elif type(container) is old:
-            container.__class__ = new
+            try:
+                container.__class__ = new
+            except TypeError:
+                # Type error happens on slotted classes
+                pass
         
         elif containerType is _InstanceType:
             if container.__class__ is old:
