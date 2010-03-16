@@ -166,8 +166,7 @@ def reimport(*modules):
             newNames = set(sys.modules) - prevNames
             newNames = _package_depth_sort(newNames, True)
             for name in newNames:
-                _unimport_module(sys.modules[name], ignores)
-                assert name not in sys.modules
+                _unimport(sys.modules.pop(name), ignores)
     
             sys.modules.update(oldModules)
             raise
@@ -275,6 +274,12 @@ def modified(path=None):
     _previous_scan_time = time.time()
     return modules
 
+
+def _safevars(obj):
+    try:
+        return vars(obj)
+    except TypeError:
+        return {}
 
 
 def _is_code_module(module):
@@ -398,8 +403,8 @@ def _push_imported_symbols(newModule, oldModule, parent):
 def _rejigger_module(old, new, ignores):
     """Mighty morphin power modules"""
     __internal_swaprefs_ignore__ = "rejigger_module"
-    oldVars = vars(old)
-    newVars = vars(new)
+    oldVars = _safevars(old)
+    newVars = _safevars(new)
     ignores += (id(oldVars),)
     old.__doc__ = new.__doc__
 
@@ -446,8 +451,8 @@ def _from_file(filename, value):
 def _rejigger_class(old, new, ignores):
     """Mighty morphin power classes"""
     __internal_swaprefs_ignore__ = "rejigger_class"    
-    oldVars = vars(old)
-    newVars = vars(new)
+    oldVars = _safevars(old)
+    newVars = _safevars(new)
     ignores += (id(oldVars),)    
 
     for name, value in newVars.iteritems():
@@ -488,10 +493,21 @@ def _rejigger_func(old, new, ignores):
 
 
 
+def _unimport(old, ignores):
+    """Unimport something, mainly used to rollback a reimport"""
+    if isinstance(old, type(sys)):
+        _unimport_module(old, ignores)
+    elif inspect.isclass(old):
+        _unimport_class(old, ignores)
+    else:
+        _remove_refs(old, ignores)
+    
+
+
 def _unimport_module(old, ignores):
     """Remove traces of a module"""
     __internal_swaprefs_ignore__ = "unimport_module"
-    oldValues = vars(old).values()
+    oldValues = _safevars(old).values()
     ignores += (id(oldValues),)    
 
     # Get filename used by python code
@@ -518,7 +534,7 @@ def _unimport_module(old, ignores):
 def _unimport_class(old, ignores):
     """Remove traces of a class"""
     __internal_swaprefs_ignore__ = "unimport_class"    
-    oldItems = vars(old).items()
+    oldItems = _safevars(old).items()
     ignores += (id(oldItems),)    
 
     for name, value in oldItems:
