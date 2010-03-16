@@ -24,6 +24,17 @@ WillItDelete3 = False
 objA = ClassA()
 
 
+
+def SlotA(object):
+    __slots__ = ("one", "two")
+    def __init__(self):
+        self.one = 1
+        self.two = 2
+
+
+slotA = SlotA()
+
+
 def __reimported__(old):
     print "DO NOT USE THIS REIMPORT! I AM STALE"
     raise RuntimeError("Do not want")
