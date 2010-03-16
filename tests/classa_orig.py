@@ -25,11 +25,12 @@ objA = ClassA()
 
 
 
-def SlotA(object):
-    __slots__ = ("one", "two")
+class SlotA(object):
+    __slots__ = ("one", "two", "three")
     def __init__(self):
         self.one = 1
         self.two = 2
+        self.three = 3
 
 
 slotA = SlotA()

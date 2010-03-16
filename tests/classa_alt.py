@@ -15,7 +15,7 @@ ModStatic1 = 22
 ModStatic3 = 1.0
 
 
-def SlotA(object):
+class SlotA(object):
     __slots__ = ("one", "two")
     def __init__(self):
         self.one = 11

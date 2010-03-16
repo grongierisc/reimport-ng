@@ -30,6 +30,7 @@ HOLDER2.c = classa.ClassA
 HOLDER2.o = classa.objA
 HOLDER3.c = classa.ClassA
 HOLDER3.o = classa.objA
+slotter = classa.SlotA()
 
 goners = ["BUTROS", classa.objA.onlyOrigA, classa.ClassA.__dict__["onlyOrigA"]]
 
@@ -46,7 +47,7 @@ weakd[1].runA()
 [o.runA() for o in objs]
 [m() for m in meths]
 print len(goners)#, goners
-print classa.slotA.one
+print slotter.one
 
 
 
@@ -94,6 +95,6 @@ HOLDER2.o.runA()
 HOLDER3.c().runA()
 HOLDER3.o.runA()
 print len(goners)#, goners
-print classa.slotA.one
+print slotter.one
 
 
