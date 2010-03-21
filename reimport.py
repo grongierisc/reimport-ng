@@ -148,19 +148,6 @@ def reimport(*modules):
                 if name not in sys.modules:
                     __import__(name)
 
-            # Test if __all__ has missing names that weren't missing before
-            newModule = sys.modules[name]
-            newAll = getattr(newModule, "__all__", ())
-            newMissingSymbols = [symbol for symbol in newAll if not hasattr(newModule, symbol)]
-            if newMissingSymbols:
-                oldModule = oldModules[name]
-                oldAll = getattr(oldModule, "__all__", ())
-                oldMissingSymbols = [symbol for symbol in oldAll if not hasattr(oldModule, symbol)]
-                missingSymbols = set(newMissingSymbols) - set(oldMissingSymbols)
-                if missingSymbols:
-                    raise AttributeError("Module %r is missing %r defined in __all__"
-                                % (name, missingSymbols.pop()))
-    
         except StandardError:
             # Try to dissolve any newly import modules and revive the old ones
             newNames = set(sys.modules) - prevNames
@@ -170,7 +157,6 @@ def reimport(*modules):
     
             sys.modules.update(oldModules)
             raise
-        
         
     finally:
         # Fix Python automatically shoving of children into parent packages
@@ -374,6 +360,7 @@ def _find_parent_importers(name, oldModule, newNames):
     return parents
 
 
+
 def _push_imported_symbols(newModule, oldModule, parent):
     """Transfer changes symbols from a child module to a parent package"""
     # This assumes everything in oldModule is already found in parent
@@ -384,15 +371,26 @@ def _push_imported_symbols(newModule, oldModule, parent):
     for name in oldExports - newExports:
         delattr(parent, name)
     
+    # Find symbols in new module, use placeholder if missing
+    symbols = {}
+    for name in newExports:
+        try:
+            symbols[name] = getattr(newModule, name)
+        except AttributeError:
+            holder = type(name, (_MissingAllReference,),
+                        {"__module__":newModule.__name__})
+            symbols[name] = holder()
+        
+    
     # Add new symbols
     for name in newExports - oldExports:
-        setattr(parent, name, getattr(newModule, name))
+        setattr(parent, name, symbols[name])
     
     # Update existing symbols
     for name in newExports & oldExports:
         oldValue = getattr(oldModule, name)
         if getattr(parent, name) is oldValue:
-            setattr(parent, name, getattr(newModule, name))
+            setattr(parent, name, symbols[name])
     
 
 
@@ -419,10 +417,12 @@ def _rejigger_module(old, new, ignores):
 
             if _from_file(filename, value):
                 if inspect.isclass(value):
-                    _rejigger_class(oldValue, value, ignores)
+                    if inspect.isclass(oldValue):
+                        _rejigger_class(oldValue, value, ignores)
                     
                 elif inspect.isfunction(value):
-                    _rejigger_func(oldValue, value, ignores)
+                    if inspect.isfunction(oldValue):
+                        _rejigger_func(oldValue, value, ignores)
         
         setattr(old, name, value)
 
@@ -556,6 +556,19 @@ def _unimport_class(old, ignores):
 
     _remove_refs(old, ignores)
 
+
+
+
+class _MissingAllReference(object):
+    """This is a stub placeholder for objects added to __all__ but
+        are not actually found.
+        """
+    def __str__(self):
+        raise AttributeError("%r missing from module %r" %
+                    (type(self).__name__, type(self).__module__))
+    __nonzero__ = __hash__ = __id__ = __cmp__ = __len__ = __iter__ = __str__
+    __repr__ = __int__ = __getattr__ = __setattr__ = __delattr__ = __str__
+    
 
 
 _recursive_tuple_swap = set()

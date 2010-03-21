@@ -29,6 +29,14 @@ class SlotA(object):
 slotA = SlotA()
 
 
+def ClassToFunc():
+    pass
+
+
+class FuncToClass(object):
+    pass
+
+
 def __reimported__(old):
     print "classa being reimported, from:", old
     return True

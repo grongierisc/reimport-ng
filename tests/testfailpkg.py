@@ -19,9 +19,17 @@ except StandardError, e:
     print type(e).__name__, e
 
 print [x for x in dir(failpkg) if not x.startswith("_")]
+try:
+    print failpkg.xyzfail
+except StandardError, e:
+    print "%s: %s" % (type(e).__name__, e)
 
 time.sleep(1)
 shutil.copy("tests/failpkg/child_alt.py", "tests/failpkg/child.py")
 reimport.reimport(*reimport.modified())
 
 print [x for x in dir(failpkg) if not x.startswith("_")]
+try:
+    print failpkg.xyzfail
+except StandardError, e:
+    print "%s: %s" % (type(e).__name__, e)

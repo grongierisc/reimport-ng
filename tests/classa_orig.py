@@ -39,6 +39,14 @@ class SlotA(object):
 slotA = SlotA()
 
 
+class ClassToFunc(object):
+    pass
+
+
+def FuncToClass():
+    pass
+
+
 def __reimported__(old):
     print "DO NOT USE THIS REIMPORT! I AM STALE"
     raise RuntimeError("Do not want")

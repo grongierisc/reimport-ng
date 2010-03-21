@@ -49,6 +49,7 @@ weakd[1].runA()
 [m() for m in meths]
 print len(goners)#, goners
 print slotter.one, slotter.getone()
+print classa.ClassToFunc, classa.FuncToClass
 
 
 
@@ -97,5 +98,7 @@ HOLDER3.c().runA()
 HOLDER3.o.runA()
 print len(goners)#, goners
 print slotter.one, slotter.getone()
+print classa.ClassToFunc, classa.FuncToClass
+
 
 
