@@ -153,7 +153,10 @@ def reimport(*modules):
             newNames = set(sys.modules) - prevNames
             newNames = _package_depth_sort(newNames, True)
             for name in newNames:
-                _unimport(sys.modules.pop(name), ignores)
+                backoutModule = sys.modules.pop(name, None)
+                if backoutModule is not None:
+                    _unimport(backoutModule, ignores)
+                del backoutModule
     
             sys.modules.update(oldModules)
             raise
