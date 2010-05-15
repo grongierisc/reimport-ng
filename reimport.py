@@ -126,95 +126,106 @@ def reimport(*modules):
         
         compile(data, pyname, "exec", 0, False)  # Let this raise exceptions
 
-    # Move modules out of sys
-    oldModules = {}
-    for name in reloadNames:
-        oldModules[name] = sys.modules.pop(name)
-    ignores = (id(oldModules), id(__builtins__))
-    prevNames = set(sys.modules)
-
-    # Python will munge the parent package on import. Remember original value
-    parentPackageName = name.rsplit(".", 1)
-    parentPackage = None
-    parentPackageDeleted = lambda: None
-    if len(parentPackageName) == 2:
-        parentPackage = sys.modules.get(parentPackageName[0], None)
-        parentValue = getattr(parentPackage, parentPackageName[1], parentPackageDeleted)
-
-    # Reimport modules, trying to rollback on exceptions
+    # Begin changing things. We "grab the GIL", so other threads
+    # don't get a chance to see our half-baked universe
+    prevInterval = sys.getcheckinterval()
+    sys.setcheckinterval(min(sys.maxint, 0x7fffffff))
     try:
+
+        # Move modules out of sys
+        oldModules = {}
+        for name in reloadNames:
+            oldModules[name] = sys.modules.pop(name)
+        ignores = (id(oldModules), id(__builtins__))
+        prevNames = set(sys.modules)
+
+        # Python will munge the parent package on import. Remember original value
+        parentPackageName = name.rsplit(".", 1)
+        parentPackage = None
+        parentPackageDeleted = lambda: None
+        if len(parentPackageName) == 2:
+            parentPackage = sys.modules.get(parentPackageName[0], None)
+            parentValue = getattr(parentPackage, parentPackageName[1], parentPackageDeleted)
+
+        # Reimport modules, trying to rollback on exceptions
         try:
-            for name in reloadNames:
-                if name not in sys.modules:
-                    __import__(name)
-
-        except StandardError:
-            # Try to dissolve any newly import modules and revive the old ones
-            newNames = set(sys.modules) - prevNames
-            newNames = _package_depth_sort(newNames, True)
-            for name in newNames:
-                backoutModule = sys.modules.pop(name, None)
-                if backoutModule is not None:
-                    _unimport(backoutModule, ignores)
-                del backoutModule
-    
-            sys.modules.update(oldModules)
-            raise
-        
-    finally:
-        # Fix Python automatically shoving of children into parent packages
-        if parentPackage and parentValue:
-            if parentValue == parentPackageDeleted:
-                try:
-                    delattr(parentPackage, parentPackageName[1])
-                except AttributeError:
-                    pass
-            else:
-                setattr(parentPackage, parentPackageName[1], parentValue)
-        parentValue = parentPackage = parentPackageDeleted = None 
-
-    newNames = set(sys.modules) - prevNames
-    newNames = _package_depth_sort(newNames, True)
-
-    # Update timestamps for loaded time
-    now = time.time() - 1.0
-    for name in newNames:
-        _module_timestamps[name] = (now, True)
-
-    # Push exported namespaces into parent packages
-    pushSymbols = {}
-    for name in newNames:
-        oldModule = oldModules.get(name)
-        if not oldModule:
-            continue
-        parents = _find_parent_importers(name, oldModule, newNames)
-        pushSymbols[name] = parents
-    for name, parents in pushSymbols.iteritems():
-        for parent in parents:
-            oldModule = oldModules[name]
-            newModule = sys.modules[name]
-            _push_imported_symbols(newModule, oldModule, parent)
-
-    # Rejigger the universe
-    for name in newNames:
-        old = oldModules.get(name)
-        if not old:
-            continue
-        new = sys.modules[name]
-        rejigger = True
-        reimported = getattr(new, "__reimported__", None)
-        if reimported:
             try:
-                rejigger = reimported(old)
-            except StandardError:
-                # What else can we do? the callbacks must go on
-                # Note, this is same as __del__ behaviour. /shrug
-                traceback.print_exc()
+                for name in reloadNames:
+                    if name not in sys.modules:
+                        __import__(name)
 
-        if rejigger:
-            _rejigger_module(old, new, ignores)
-        else:
-            _unimport_module(new, ignores)
+            except StandardError:
+                # Try to dissolve any newly import modules and revive the old ones
+                newNames = set(sys.modules) - prevNames
+                newNames = _package_depth_sort(newNames, True)
+                for name in newNames:
+                    backoutModule = sys.modules.pop(name, None)
+                    if backoutModule is not None:
+                        _unimport(backoutModule, ignores)
+                    del backoutModule
+        
+                sys.modules.update(oldModules)
+                raise
+            
+        finally:
+            # Fix Python automatically shoving of children into parent packages
+            if parentPackage and parentValue:
+                if parentValue == parentPackageDeleted:
+                    try:
+                        delattr(parentPackage, parentPackageName[1])
+                    except AttributeError:
+                        pass
+                else:
+                    setattr(parentPackage, parentPackageName[1], parentValue)
+            parentValue = parentPackage = parentPackageDeleted = None 
+
+        newNames = set(sys.modules) - prevNames
+        newNames = _package_depth_sort(newNames, True)
+
+        # Update timestamps for loaded time
+        now = time.time() - 1.0
+        for name in newNames:
+            _module_timestamps[name] = (now, True)
+
+        # Push exported namespaces into parent packages
+        pushSymbols = {}
+        for name in newNames:
+            oldModule = oldModules.get(name)
+            if not oldModule:
+                continue
+            parents = _find_parent_importers(name, oldModule, newNames)
+            pushSymbols[name] = parents
+        for name, parents in pushSymbols.iteritems():
+            for parent in parents:
+                oldModule = oldModules[name]
+                newModule = sys.modules[name]
+                _push_imported_symbols(newModule, oldModule, parent)
+
+        # Rejigger the universe
+        for name in newNames:
+            old = oldModules.get(name)
+            if not old:
+                continue
+            new = sys.modules[name]
+            rejigger = True
+            reimported = getattr(new, "__reimported__", None)
+            if reimported:
+                try:
+                    rejigger = reimported(old)
+                except StandardError:
+                    # What else can we do? the callbacks must go on
+                    # Note, this is same as __del__ behaviour. /shrug
+                    traceback.print_exc()
+
+            if rejigger:
+                _rejigger_module(old, new, ignores)
+            else:
+                _unimport_module(new, ignores)
+
+    finally:
+        # Restore the GIL
+        sys.setcheckinterval(prevInterval)
+        time.sleep(0)
 
 
 
@@ -461,7 +472,7 @@ def _rejigger_class(old, new, ignores):
     slotted = hasattr(old, "__slots__")
     ignoreAttrs = ["__dict__", "__doc__", "__weakref__"]
     if slotted:
-        ignoreAttrs.extend(getattr(old, "__slots__"))
+        ignoreAttrs.extend(old.__slots__)
         ignoreAttrs.append("__slots__")
     ignoreAttrs = tuple(ignoreAttrs)
 
