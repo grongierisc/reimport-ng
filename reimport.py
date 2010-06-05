@@ -43,6 +43,7 @@ __all__ = ["reimport", "modified"]
 import sys
 import os
 import gc
+import imp
 import inspect
 import weakref
 import traceback
@@ -128,6 +129,7 @@ def reimport(*modules):
 
     # Begin changing things. We "grab the GIL", so other threads
     # don't get a chance to see our half-baked universe
+    imp.acquire_lock()
     prevInterval = sys.getcheckinterval()
     sys.setcheckinterval(min(sys.maxint, 0x7fffffff))
     try:
@@ -224,6 +226,7 @@ def reimport(*modules):
 
     finally:
         # Restore the GIL
+        imp.release_lock()
         sys.setcheckinterval(prevInterval)
         time.sleep(0)
 
