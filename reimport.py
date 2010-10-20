@@ -472,7 +472,7 @@ def _rejigger_class(old, new, ignores):
     newVars = _safevars(new)
     ignores += (id(oldVars),)    
 
-    slotted = hasattr(old, "__slots__")
+    slotted = hasattr(old, "__slots__") and isinstance(old.__slots__, tuple)
     ignoreAttrs = ["__dict__", "__doc__", "__weakref__"]
     if slotted:
         ignoreAttrs.extend(old.__slots__)
