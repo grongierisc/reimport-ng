@@ -12,7 +12,11 @@ shutil.copy("tests/classa_orig.py", "tests/classa.py")
 import tests.classb as classb
 import tests as classa
 
+inst = classa.ClassA()
+
 obj = classa.objA
+assert isinstance(classa.objA, classa.ClassA)
+assert isinstance(inst, classa.ClassA)
 meth = classa.objA.runA
 ref = weakref.ref(classa.objA)
 weakd = weakref.WeakValueDictionary()
@@ -85,6 +89,8 @@ print "ENSURE:", ENSURE_NOT_DELETED1, ENSURE_NOT_DELETED2, ENSURE_NOT_DELETED3, 
 
 
 print (classa.objA.__doc__, classa.objA.runA.__doc__)
+assert isinstance(classa.objA, classa.ClassA)
+assert isinstance(inst, classa.ClassA)
 classa.objA.runA()
 classb.objB.runA()
 obj.runA()

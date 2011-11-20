@@ -52,3 +52,6 @@ def __reimported__(old):
     raise RuntimeError("Do not want")
     print "classa being reimported, from:", old
     return True
+
+QMainWindow = type("QtNotFound", (object,), {})
+

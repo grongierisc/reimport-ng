@@ -83,7 +83,7 @@ def reimport(*modules):
         If a package module defines __reimported__ it must be a callable
         function that accepts one argument and returns a bool. The argument
         is the reference to the old version of that module before any
-        cleanup has happend. The function should normally return True to
+        cleanup has happened. The function should normally return True to
         allow the standard reimport cleanup. If the function returns false
         then cleanup will be disabled for only that module. Any exceptions
         raised during the callback will be handled by traceback.print_exc,
@@ -134,20 +134,24 @@ def reimport(*modules):
     sys.setcheckinterval(min(sys.maxint, 0x7fffffff))
     try:
 
+        # Python will munge the parent package on import. Remember original value
+        parentValues = []
+        parentPackageDeleted = lambda: None
+        for name in reloadNames:
+            parentPackageName = name.rsplit(".", 1)
+            if len(parentPackageName) == 2:
+                parentPackage = sys.modules.get(parentPackageName[0], None)
+                parentValue = getattr(parentPackage, parentPackageName[1], parentPackageDeleted)
+                if parentValue != sys.modules[name]:
+                    parentValues.append((parentPackage, parentPackageName[1], parentValue))
+                parentPackage = parentValue = None
+
         # Move modules out of sys
         oldModules = {}
         for name in reloadNames:
             oldModules[name] = sys.modules.pop(name)
         ignores = (id(oldModules), id(__builtins__))
         prevNames = set(sys.modules)
-
-        # Python will munge the parent package on import. Remember original value
-        parentPackageName = name.rsplit(".", 1)
-        parentPackage = None
-        parentPackageDeleted = lambda: None
-        if len(parentPackageName) == 2:
-            parentPackage = sys.modules.get(parentPackageName[0], None)
-            parentValue = getattr(parentPackage, parentPackageName[1], parentPackageDeleted)
 
         # Reimport modules, trying to rollback on exceptions
         try:
@@ -165,21 +169,22 @@ def reimport(*modules):
                     if backoutModule is not None:
                         _unimport(backoutModule, ignores)
                     del backoutModule
-        
+
                 sys.modules.update(oldModules)
                 raise
-            
+
         finally:
             # Fix Python automatically shoving of children into parent packages
-            if parentPackage and parentValue:
-                if parentValue == parentPackageDeleted:
+            for parentPackage, name, value in parentValues:
+                if value == parentPackageDeleted:
                     try:
-                        delattr(parentPackage, parentPackageName[1])
+                        delattr(parentPackage, name)
                     except AttributeError:
                         pass
                 else:
-                    setattr(parentPackage, parentPackageName[1], parentValue)
-            parentValue = parentPackage = parentPackageDeleted = None 
+                    setattr(parentPackage, name, value)
+            parentValues = parentPackage = parentPackageDeleted = value = None
+
 
         newNames = set(sys.modules) - prevNames
         newNames = _package_depth_sort(newNames, True)

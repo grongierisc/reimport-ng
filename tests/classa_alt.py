@@ -43,3 +43,6 @@ def __reimported__(old):
 
 
 #klass SYNTAXERR(x): pass
+
+QMainWindow = type("QtNotFound", (object,), {})
+
