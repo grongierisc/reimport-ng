@@ -150,7 +150,7 @@ def reimport(*modules):
         oldModules = {}
         for name in reloadNames:
             oldModules[name] = sys.modules.pop(name)
-        ignores = (id(oldModules), id(__builtins__))
+        ignores = (id(oldModules), id(__builtins__.__dict__))
         prevNames = set(sys.modules)
 
         # Reimport modules, trying to rollback on exceptions
@@ -184,7 +184,6 @@ def reimport(*modules):
                 else:
                     setattr(parentPackage, name, value)
             parentValues = parentPackage = parentPackageDeleted = value = None
-
 
         newNames = set(sys.modules) - prevNames
         newNames = _package_depth_sort(newNames, True)
