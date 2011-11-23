@@ -150,7 +150,7 @@ def reimport(*modules):
         oldModules = {}
         for name in reloadNames:
             oldModules[name] = sys.modules.pop(name)
-        ignores = (id(oldModules), id(__builtins__.__dict__))
+        ignores = (id(oldModules),)
         prevNames = set(sys.modules)
 
         # Reimport modules, trying to rollback on exceptions
@@ -447,9 +447,8 @@ def _rejigger_module(old, new, ignores):
         
         setattr(old, name, value)
 
-    for name in oldVars.keys():
+    for name, value in oldVars.items():
         if name not in newVars:
-            value = getattr(old, name)
             delattr(old, name)
             if _from_file(filename, value):
                 if inspect.isclass(value) or inspect.isfunction(value):
@@ -500,9 +499,8 @@ def _rejigger_class(old, new, ignores):
 
         setattr(old, name, value)
     
-    for name in oldVars.keys():
+    for name, value in oldVars.items():
         if name not in newVars:
-            value = getattr(old, name)
             delattr(old, name)
             _remove_refs(value, ignores)
 
@@ -584,7 +582,7 @@ class _MissingAllReference(object):
     """This is a stub placeholder for objects added to __all__ but
         are not actually found.
         """
-    def __str__(self):
+    def __str__(self, *args):
         raise AttributeError("%r missing from module %r" %
                     (type(self).__name__, type(self).__module__))
     __nonzero__ = __hash__ = __id__ = __cmp__ = __len__ = __iter__ = __str__
