@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '1.3'
+version = '1.4'
 
 setup(name='reimport',
     version=version,
@@ -15,7 +15,7 @@ for Python plugins and extensions used by longer running applications.""",
         "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: MIT License",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Programming Language :: Python",
+        'Programming Language :: Python :: 2',
         ],
     keywords='reload reimport',
     author='Peter Shinners',
