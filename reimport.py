@@ -127,6 +127,10 @@ def reimport(*modules):
         
         compile(data, pyname, "exec", 0, False)  # Let this raise exceptions
 
+    clearTypeCache = getattr(sys, "_clear_type_cache", None)
+    if clearTypeCache:
+        clearTypeCache()
+
     # Begin changing things. We "grab the GIL", so other threads
     # don't get a chance to see our half-baked universe
     imp.acquire_lock()
@@ -229,6 +233,9 @@ def reimport(*modules):
                 _unimport_module(new, ignores)
 
     finally:
+        if clearTypeCache:
+            clearTypeCache()
+
         # Restore the GIL
         imp.release_lock()
         sys.setcheckinterval(prevInterval)
