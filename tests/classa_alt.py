@@ -6,7 +6,8 @@ class ClassA(object):
     def runA(self):
         """altername class a runA"""
         print "ALT A Run"
-    
+
+    ClassStatic1 = 21
     def onlyAltA(self): pass
     
 objA = ClassA()

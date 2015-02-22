@@ -54,7 +54,7 @@ weakd[1].runA()
 print len(goners)#, goners
 print slotter.one, slotter.getone()
 print classa.ClassToFunc, classa.FuncToClass
-
+print classa.ClassA.ClassStatic1, inst.ClassStatic1, hasattr(inst, "ClassStatic2")
 
 
 time.sleep(1)
@@ -105,6 +105,7 @@ HOLDER3.o.runA()
 print len(goners)#, goners
 print slotter.one, slotter.getone()
 print classa.ClassToFunc, classa.FuncToClass
+print classa.ClassA.ClassStatic1, inst.ClassStatic1, hasattr(inst, "ClassStatic2")
 
 
 

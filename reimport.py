@@ -51,7 +51,7 @@ import time
 
 
 
-__version__ = "1.3"
+__version__ = "1.4"
 __author__ = "Peter Shinners <pete@shinners.org>"
 __license__ = "MIT"
 __url__ = "http://code.google.com/p/reimport"
@@ -126,6 +126,10 @@ def reimport(*modules):
             continue
         
         compile(data, pyname, "exec", 0, False)  # Let this raise exceptions
+
+    clearTypeCache = getattr(sys, "_clear_type_cache", None)
+    if clearTypeCache:
+        clearTypeCache()
 
     # Begin changing things. We "grab the GIL", so other threads
     # don't get a chance to see our half-baked universe
@@ -229,6 +233,9 @@ def reimport(*modules):
                 _unimport_module(new, ignores)
 
     finally:
+        if clearTypeCache:
+            clearTypeCache()
+
         # Restore the GIL
         imp.release_lock()
         sys.setcheckinterval(prevInterval)
