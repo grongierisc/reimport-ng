@@ -2,7 +2,7 @@ This module intends to be a full featured replacement for Python's reload functi
 
 Reimport currently supports Python 2.4 through 2.7.
 
-By its very nature, this is not a completely solvable problem. The goal of this module is to make the most common sorts of updates work well. It also allows individual modules and package to assist in the process. A more detailed description of what happens is on the [Wiki](../wiki) page.
+By its very nature, this is not a completely solvable problem. The goal of this module is to make the most common sorts of updates work well. It also allows individual modules and package to assist in the process. A more detailed description of what happens is on the [Wiki](https://bitbucket.org/petershinners/reimport/wiki) page.
 
 ## Quick Docs
 
