@@ -1,7 +1,6 @@
 from setuptools import setup, find_packages
-import sys, os
 
-version = '1.4'
+version = '1.4.1'
 
 setup(name='reimport',
     version=version,
@@ -20,7 +19,7 @@ for Python plugins and extensions used by longer running applications.""",
     keywords='reload reimport',
     author='Peter Shinners',
     author_email='pete@shinners.org',
-    url='http://code.google.com/p/reimport/',
+    url='https://bitbucket.org/petershinners/reimport',
     license='MIT',
     include_package_data=True,
     zip_safe=True,

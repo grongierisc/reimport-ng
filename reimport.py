@@ -51,10 +51,10 @@ import time
 
 
 
-__version__ = "1.4"
+__version__ = "1.4.1"
 __author__ = "Peter Shinners <pete@shinners.org>"
 __license__ = "MIT"
-__url__ = "http://code.google.com/p/reimport"
+__url__ = "https://bitbucket.org/petershinners/reimport"
 
 
 
