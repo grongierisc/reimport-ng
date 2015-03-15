@@ -19,7 +19,7 @@ There are two functions in the API.
         return list_of_strings 
 
 
-= Related =
+## Related
 
 There have been previous attempts at python reimporting. Most are incomplete or frightening, but several of them are worth a closer look.
 
