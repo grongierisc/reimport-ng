@@ -1,27 +1,3 @@
-# MIT Licensed
-# Copyright (c) 2009-2010 Peter Shinners <pete@shinners.org> 
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation
-# files (the "Software"), to deal in the Software without
-# restriction, including without limitation the rights to use,
-# copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the
-# Software is furnished to do so, subject to the following
-# conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-# OTHER DEALINGS IN THE SOFTWARE.
-
 """
 This module intends to be a full featured replacement for Python's reload
 function. It is targeted towards making a reload that works for Python
@@ -63,7 +39,8 @@ _module_timestamps = {}
 
 
 # find the 'instance' old style type
-class _OldClass: pass
+class _OldClass: 
+    pass
 _InstanceType = type(_OldClass())
 del _OldClass
 
@@ -90,7 +67,7 @@ def reimport(*modules):
         similar to what happens with tracebacks in the __del__ method.
         """
     __internal_swaprefs_ignore__ = "reimport"
-    reloadSet = set()
+    reload_set = set()
 
     if not modules:
         return
@@ -103,10 +80,10 @@ def reimport(*modules):
         if not _is_code_module(target):
             raise ValueError("Cannot reimport extension, %r" % name)
 
-        reloadSet.update(_find_reloading_modules(name))
+        reload_set.update(_find_reloading_modules(name))
 
     # Sort module names 
-    reloadNames = _package_depth_sort(reloadSet, False)
+    reload_names = _package_depth_sort(reload_set, False)
 
     # Check for SyntaxErrors ahead of time. This won't catch all
     # possible SyntaxErrors or any other ImportErrors. But these
@@ -115,7 +92,7 @@ def reimport(*modules):
     # I know this gets compiled again anyways. It could be
     # avoided with py_compile, but I will not be the creator
     # of messy .pyc files!
-    for name in reloadNames:
+    for name in reload_names:
         filename = getattr(sys.modules[name], "__file__", None)
         if not filename:
             continue
@@ -127,93 +104,93 @@ def reimport(*modules):
         
         compile(data, pyname, "exec", 0, False)  # Let this raise exceptions
 
-    clearTypeCache = getattr(sys, "_clear_type_cache", None)
-    if clearTypeCache:
-        clearTypeCache()
+    clear_type_cache = getattr(sys, "_clear_type_cache", None)
+    if clear_type_cache:
+        clear_type_cache()
 
     # Begin changing things. We "grab the GIL", so other threads
     # don't get a chance to see our half-baked universe
     imp.acquire_lock()
-    prevInterval = sys.getcheckinterval()
+    prev_interval = sys.getcheckinterval()
     sys.setcheckinterval(min(sys.maxint, 0x7fffffff))
     try:
 
         # Python will munge the parent package on import. Remember original value
-        parentValues = []
-        parentPackageDeleted = lambda: None
-        for name in reloadNames:
-            parentPackageName = name.rsplit(".", 1)
-            if len(parentPackageName) == 2:
-                parentPackage = sys.modules.get(parentPackageName[0], None)
-                parentValue = getattr(parentPackage, parentPackageName[1], parentPackageDeleted)
-                if parentValue != sys.modules[name]:
-                    parentValues.append((parentPackage, parentPackageName[1], parentValue))
-                parentPackage = parentValue = None
+        parent_values = []
+        parent_package_deleted = lambda: None
+        for name in reload_names:
+            parent_package_name = name.rsplit(".", 1)
+            if len(parent_package_name) == 2:
+                parent_package = sys.modules.get(parent_package_name[0], None)
+                parent_value = getattr(parent_package, parent_package_name[1], parent_package_deleted)
+                if parent_value != sys.modules[name]:
+                    parent_values.append((parent_package, parent_package_name[1], parent_value))
+                parent_package = parent_value = None
 
         # Move modules out of sys
-        oldModules = {}
-        for name in reloadNames:
-            oldModules[name] = sys.modules.pop(name)
-        ignores = (id(oldModules),)
-        prevNames = set(sys.modules)
+        old_modules = {}
+        for name in reload_names:
+            old_modules[name] = sys.modules.pop(name)
+        ignores = (id(old_modules),)
+        prev_names = set(sys.modules)
 
         # Reimport modules, trying to rollback on exceptions
         try:
             try:
-                for name in reloadNames:
+                for name in reload_names:
                     if name not in sys.modules:
                         __import__(name)
 
             except StandardError:
                 # Try to dissolve any newly import modules and revive the old ones
-                newNames = set(sys.modules) - prevNames
-                newNames = _package_depth_sort(newNames, True)
-                for name in newNames:
-                    backoutModule = sys.modules.pop(name, None)
-                    if backoutModule is not None:
-                        _unimport(backoutModule, ignores)
-                    del backoutModule
+                new_names = set(sys.modules) - prev_names
+                new_names = _package_depth_sort(new_names, True)
+                for name in new_names:
+                    backout_module = sys.modules.pop(name, None)
+                    if backout_module is not None:
+                        _unimport(backout_module, ignores)
+                    del backout_module
 
-                sys.modules.update(oldModules)
+                sys.modules.update(old_modules)
                 raise
 
         finally:
             # Fix Python automatically shoving of children into parent packages
-            for parentPackage, name, value in parentValues:
-                if value == parentPackageDeleted:
+            for parent_package, name, value in parent_values:
+                if value == parent_package_deleted:
                     try:
-                        delattr(parentPackage, name)
+                        delattr(parent_package, name)
                     except AttributeError:
                         pass
                 else:
-                    setattr(parentPackage, name, value)
-            parentValues = parentPackage = parentPackageDeleted = value = None
+                    setattr(parent_package, name, value)
+            parent_values = parent_package = parent_package_deleted = value = None
 
-        newNames = set(sys.modules) - prevNames
-        newNames = _package_depth_sort(newNames, True)
+        new_names = set(sys.modules) - prev_names
+        new_names = _package_depth_sort(new_names, True)
 
         # Update timestamps for loaded time
         now = time.time() - 1.0
-        for name in newNames:
+        for name in new_names:
             _module_timestamps[name] = (now, True)
 
         # Push exported namespaces into parent packages
-        pushSymbols = {}
-        for name in newNames:
-            oldModule = oldModules.get(name)
-            if not oldModule:
+        push_symbols = {}
+        for name in new_names:
+            old_module = old_modules.get(name)
+            if not old_module:
                 continue
-            parents = _find_parent_importers(name, oldModule, newNames)
-            pushSymbols[name] = parents
-        for name, parents in pushSymbols.iteritems():
+            parents = _find_parent_importers(name, old_module, new_names)
+            push_symbols[name] = parents
+        for name, parents in push_symbols.iteritems():
             for parent in parents:
-                oldModule = oldModules[name]
-                newModule = sys.modules[name]
-                _push_imported_symbols(newModule, oldModule, parent)
+                old_module = old_modules[name]
+                new_module = sys.modules[name]
+                _push_imported_symbols(new_module, old_module, parent)
 
         # Rejigger the universe
-        for name in newNames:
-            old = oldModules.get(name)
+        for name in new_names:
+            old = old_modules.get(name)
             if not old:
                 continue
             new = sys.modules[name]
@@ -233,12 +210,12 @@ def reimport(*modules):
                 _unimport_module(new, ignores)
 
     finally:
-        if clearTypeCache:
-            clearTypeCache()
+        if clear_type_cache:
+            clear_type_cache()
 
         # Restore the GIL
         imp.release_lock()
-        sys.setcheckinterval(prevInterval)
+        sys.setcheckinterval(prev_interval)
         time.sleep(0)
 
 
@@ -253,8 +230,8 @@ def modified(path=None):
     if path:
         path = os.path.normpath(path) + os.sep
         
-    defaultTime = (_previous_scan_time, False)
-    pycExt = __debug__ and ".pyc" or ".pyo"
+    default_time = (_previous_scan_time, False)
+    pyc_ext = __debug__ and ".pyc" or ".pyo"
     
     for name, module in sys.modules.items():
         filename = _is_code_module(module)
@@ -262,27 +239,27 @@ def modified(path=None):
             continue
 
         filename = os.path.normpath(filename)
-        prevTime, prevScan = _module_timestamps.setdefault(name, defaultTime)
+        prev_time, prev_scan = _module_timestamps.setdefault(name, default_time)
         if path and not filename.startswith(path):
             continue
 
         # Get timestamp of .pyc if this is first time checking this module
-        if not prevScan:
-            pycName = os.path.splitext(filename)[0] + pycExt
-            if pycName != filename:
+        if not prev_scan:
+            pyc_name = os.path.splitext(filename)[0] + pyc_ext
+            if pyc_name != filename:
                 try:
-                    prevTime = os.path.getmtime(pycName)
+                    prev_time = os.path.getmtime(pyc_name)
                 except OSError:
                     pass
-            _module_timestamps[name] = (prevTime, True)
+            _module_timestamps[name] = (prev_time, True)
 
         # Get timestamp of source file
         try:
-            diskTime = os.path.getmtime(filename)
+            disk_time = os.path.getmtime(filename)
         except OSError:
-            diskTime = None
+            disk_time = None
                 
-        if diskTime is not None and prevTime < diskTime:
+        if disk_time is not None and prev_time < disk_time:
             modules.append(name)
 
     _previous_scan_time = time.time()
@@ -310,38 +287,38 @@ def _find_exact_target(module):
     """Given a module name or object, find the
             base module where reimport will happen."""
     # Given a name or a module, find both the name and the module
-    actualModule = sys.modules.get(module)
-    if actualModule is not None:
+    actual_module = sys.modules.get(module)
+    if actual_module is not None:
         name = module
     else:
         for name, mod in sys.modules.iteritems():
             if mod is module:
-                actualModule = module
+                actual_module = module
                 break
         else:
             return "", None
 
     # Find highest level parent package that has package_reimport magic
-    parentName = name
+    parent_name = name
     while True:
-        splitName = parentName.rsplit(".", 1)
-        if len(splitName) <= 1:
-            return name, actualModule
-        parentName = splitName[0]
+        split_name = parent_name.rsplit(".", 1)
+        if len(split_name) <= 1:
+            return name, actual_module
+        parent_name = split_name[0]
         
-        parentModule = sys.modules.get(parentName)
-        if getattr(parentModule, "__package_reimport__", None):
-            name = parentName
-            actualModule = parentModule
+        parent_module = sys.modules.get(parent_name)
+        if getattr(parent_module, "__package_reimport__", None):
+            name = parent_name
+            actual_module = parent_module
 
 
 
 def _find_reloading_modules(name):
     """Find all modules that will be reloaded from given name"""
     modules = [name]
-    childNames = name + "."
+    child_names = name + "."
     for name in sys.modules.keys():
-        if name.startswith(childNames) and _is_code_module(sys.modules[name]):
+        if name.startswith(child_names) and _is_code_module(sys.modules[name]):
             modules.append(name)
     return modules
 
@@ -356,19 +333,19 @@ def _package_depth_sort(names, reverse):
 
 
 def _find_module_exports(module):
-    allNames = getattr(module, "__all__", ())
-    if not allNames:
-        allNames = [n for n in dir(module) if n[0] != "_"]
-    return set(allNames)
+    all_names = getattr(module, "__all__", ())
+    if not all_names:
+        all_names = [n for n in dir(module) if n[0] != "_"]
+    return set(all_names)
 
 
 
-def _find_parent_importers(name, oldModule, newNames):
+def _find_parent_importers(name, old_module, new_names):
     """Find parents of reimported module that have all exported symbols"""
     parents = []
 
     # Get exported symbols
-    exports = _find_module_exports(oldModule)
+    exports = _find_module_exports(old_module)
     if not exports:
         return parents
 
@@ -379,45 +356,45 @@ def _find_parent_importers(name, oldModule, newNames):
         if len(names) <= 1:
             break
         parent = names[0]
-        if parent in newNames:
+        if parent in new_names:
             continue
-        parentModule = sys.modules[parent]
-        if not exports - set(dir(parentModule)):
-            parents.append(parentModule)
+        parent_module = sys.modules[parent]
+        if not exports - set(dir(parent_module)):
+            parents.append(parent_module)
     
     return parents
 
 
 
-def _push_imported_symbols(newModule, oldModule, parent):
+def _push_imported_symbols(new_module, old_module, parent):
     """Transfer changes symbols from a child module to a parent package"""
-    # This assumes everything in oldModule is already found in parent
-    oldExports = _find_module_exports(oldModule)
-    newExports = _find_module_exports(newModule)
+    # This assumes everything in old_module is already found in parent
+    old_exports = _find_module_exports(old_module)
+    new_exports = _find_module_exports(new_module)
 
     # Delete missing symbols
-    for name in oldExports - newExports:
+    for name in old_exports - new_exports:
         delattr(parent, name)
     
     # Find symbols in new module, use placeholder if missing
     symbols = {}
-    for name in newExports:
+    for name in new_exports:
         try:
-            symbols[name] = getattr(newModule, name)
+            symbols[name] = getattr(new_module, name)
         except AttributeError:
             holder = type(name, (_MissingAllReference,),
-                        {"__module__":newModule.__name__})
+                        {"__module__":new_module.__name__})
             symbols[name] = holder()
         
     
     # Add new symbols
-    for name in newExports - oldExports:
+    for name in new_exports - old_exports:
         setattr(parent, name, symbols[name])
     
     # Update existing symbols
-    for name in newExports & oldExports:
-        oldValue = getattr(oldModule, name)
-        if getattr(parent, name) is oldValue:
+    for name in new_exports & old_exports:
+        old_value = getattr(old_module, name)
+        if getattr(parent, name) is old_value:
             setattr(parent, name, symbols[name])
     
 
@@ -429,33 +406,33 @@ def _push_imported_symbols(newModule, oldModule, parent):
 def _rejigger_module(old, new, ignores):
     """Mighty morphin power modules"""
     __internal_swaprefs_ignore__ = "rejigger_module"
-    oldVars = _safevars(old)
-    newVars = _safevars(new)
-    ignores += (id(oldVars),)
+    old_vars = _safevars(old)
+    new_vars = _safevars(new)
+    ignores += (id(old_vars),)
     old.__doc__ = new.__doc__
 
     # Get filename used by python code
     filename = new.__file__
 
-    for name, value in newVars.iteritems():
-        if name in oldVars:
-            oldValue = oldVars[name]
-            if oldValue is value:
+    for name, value in new_vars.iteritems():
+        if name in old_vars:
+            old_value = old_vars[name]
+            if old_value is value:
                 continue
 
             if _from_file(filename, value):
                 if inspect.isclass(value):
-                    if inspect.isclass(oldValue):
-                        _rejigger_class(oldValue, value, ignores)
+                    if inspect.isclass(old_value):
+                        _rejigger_class(old_value, value, ignores)
                     
                 elif inspect.isfunction(value):
-                    if inspect.isfunction(oldValue):
-                        _rejigger_func(oldValue, value, ignores)
+                    if inspect.isfunction(old_value):
+                        _rejigger_func(old_value, value, ignores)
         
         setattr(old, name, value)
 
-    for name, value in oldVars.items():
-        if name not in newVars:
+    for name, value in old_vars.items():
+        if name not in new_vars:
             delattr(old, name)
             if _from_file(filename, value):
                 if inspect.isclass(value) or inspect.isfunction(value):
@@ -478,36 +455,36 @@ def _from_file(filename, value):
 def _rejigger_class(old, new, ignores):
     """Mighty morphin power classes"""
     __internal_swaprefs_ignore__ = "rejigger_class"    
-    oldVars = _safevars(old)
-    newVars = _safevars(new)
-    ignores += (id(oldVars),)    
+    old_vars = _safevars(old)
+    new_vars = _safevars(new)
+    ignores += (id(old_vars),)    
 
     slotted = hasattr(old, "__slots__") and isinstance(old.__slots__, tuple)
-    ignoreAttrs = ["__dict__", "__doc__", "__weakref__"]
+    ignore_attrs = ["__dict__", "__doc__", "__weakref__"]
     if slotted:
-        ignoreAttrs.extend(old.__slots__)
-        ignoreAttrs.append("__slots__")
-    ignoreAttrs = tuple(ignoreAttrs)
+        ignore_attrs.extend(old.__slots__)
+        ignore_attrs.append("__slots__")
+    ignore_attrs = tuple(ignore_attrs)
 
-    for name, value in newVars.iteritems():
-        if name in ignoreAttrs:
+    for name, value in new_vars.iteritems():
+        if name in ignore_attrs:
             continue
 
-        if name in oldVars:
-            oldValue = oldVars[name]
-            if oldValue is value:
+        if name in old_vars:
+            old_value = old_vars[name]
+            if old_value is value:
                 continue
 
             if inspect.isclass(value) and value.__module__ == new.__module__:
-                _rejigger_class(oldValue, value, ignores)
+                _rejigger_class(old_value, value, ignores)
             
             elif inspect.isfunction(value):
-                _rejigger_func(oldValue, value, ignores)
+                _rejigger_func(old_value, value, ignores)
 
         setattr(old, name, value)
     
-    for name, value in oldVars.items():
-        if name not in newVars:
+    for name, value in old_vars.items():
+        if name not in new_vars:
             delattr(old, name)
             _remove_refs(value, ignores)
 
@@ -540,8 +517,8 @@ def _unimport(old, ignores):
 def _unimport_module(old, ignores):
     """Remove traces of a module"""
     __internal_swaprefs_ignore__ = "unimport_module"
-    oldValues = _safevars(old).values()
-    ignores += (id(oldValues),)    
+    old_values = _safevars(old).values()
+    ignores += (id(old_values),)    
 
     # Get filename used by python code
     filename = old.__file__
@@ -549,7 +526,7 @@ def _unimport_module(old, ignores):
     if fileext in (".pyo", ".pyc", ".pyw"):
         filename = filename[:-1]
 
-    for value in oldValues:
+    for value in old_values:
         try: objfile = inspect.getsourcefile(value)
         except TypeError: objfile = ""
         
@@ -567,10 +544,10 @@ def _unimport_module(old, ignores):
 def _unimport_class(old, ignores):
     """Remove traces of a class"""
     __internal_swaprefs_ignore__ = "unimport_class"    
-    oldItems = _safevars(old).items()
-    ignores += (id(oldItems),)    
+    old_items = _safevars(old).items()
+    ignores += (id(old_items),)    
 
-    for name, value in oldItems:
+    for name, value in old_items:
         if name in ("__dict__", "__doc__", "__weakref__"):
             continue
 
@@ -647,13 +624,13 @@ def _swap_refs(old, new, ignores):
     for container in referrers:
         if id(container) in ignores:
             continue
-        containerType = type(container)
+        container_type = type(container)
         
-        if containerType is list or containerType is deque:
+        if container_type is list or container_type is deque:
             for index in _find_sequence_indices(container, old):
                 container[index] = new
         
-        elif containerType is tuple:
+        elif container_type is tuple:
             # protect from recursive tuples
             orig = container
             if id(orig) in _recursive_tuple_swap:
@@ -668,7 +645,7 @@ def _swap_refs(old, new, ignores):
             finally:
                 _recursive_tuple_swap.remove(id(orig))
         
-        elif containerType is dict or containerType is defaultdict:
+        elif container_type is dict or container_type is defaultdict:
             if "__internal_swaprefs_ignore__" not in container:
                 try:
                     if old in container:
@@ -679,11 +656,11 @@ def _swap_refs(old, new, ignores):
                     if v is old:
                         container[k] = new
 
-        elif containerType is set:
+        elif container_type is set:
             container.remove(old)
             container.add(new)
 
-        elif containerType is type:
+        elif container_type is type:
             if old in container.__bases__:
                 bases = list(container.__bases__)
                 bases[bases.index(old)] = new
@@ -696,7 +673,7 @@ def _swap_refs(old, new, ignores):
                 # Type error happens on slotted classes
                 pass
         
-        elif containerType is _InstanceType:
+        elif container_type is _InstanceType:
             if container.__class__ is old:
                 container.__class__ = new
 
@@ -716,13 +693,13 @@ def _remove_refs(old, ignores):
     for container in gc.get_referrers(old):
         if id(container) in ignores:
             continue
-        containerType = type(container)
+        container_type = type(container)
 
-        if containerType is list or containerType is deque:
+        if container_type is list or container_type is deque:
             for index in _find_sequence_indices(container, old):
                 del container[index]
         
-        elif containerType is tuple:
+        elif container_type is tuple:
             orig = container
             container = list(container)
             for index in _find_sequence_indices(container, old):
@@ -730,7 +707,7 @@ def _remove_refs(old, ignores):
             container = tuple(container)
             _swap_refs(orig, container, ignores)
         
-        elif containerType is dict or containerType is defaultdict:
+        elif container_type is dict or container_type is defaultdict:
             if "__internal_swaprefs_ignore__" not in container:
                 try:
                     container.pop(old, None)
@@ -740,5 +717,5 @@ def _remove_refs(old, ignores):
                     if v is old:
                         del container[k]
 
-        elif containerType is set:
+        elif container_type is set:
             container.remove(old)
