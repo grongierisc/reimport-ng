@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "reimport_ng"
+version = "1.5.0"
+description = "Reimport a module in Python3"
+readme = "README.md"
+authors = [
+    { name = "grongier", email = "guillaume.rongier@intersystems.com" },
+]
+keywords = ["reimport", "module", "python3"]
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Utilities"
+]
+
+license = { file = "LICENSE" }
+
+[project.urls]
+homepage = "https://github.com/grongierisc/reimport-ng"
+documentation = "https://github.com/grongierisc/reimport-ng/blob/master/README.md"
+repository = "https://github.com/grongierisc/reimport-ng"
+issues = "https://github.com/grongierisc/reimport-ng/issues"
+
+[dev.dependencies]
+pytest = "^8.3.0"
+build = "^1.2.0"
+twine = "^5.0.0"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
