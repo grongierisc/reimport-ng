@@ -19,7 +19,7 @@ __all__ = ["reimport", "modified"]
 import sys
 import os
 import gc
-import imp
+import threading
 import inspect
 import weakref
 import traceback
@@ -98,7 +98,7 @@ def reimport(*modules):
             continue
         pyname = os.path.splitext(filename)[0] + ".py"
         try:
-            data = open(pyname, "rU").read() + "\n"
+            data = open(pyname, "r", encoding="utf-8").read() + "\n"
         except (IOError, OSError):
             continue
         
@@ -110,9 +110,14 @@ def reimport(*modules):
 
     # Begin changing things. We "grab the GIL", so other threads
     # don't get a chance to see our half-baked universe
-    imp.acquire_lock()
-    prev_interval = sys.getcheckinterval()
-    sys.setcheckinterval(min(sys.maxint, 0x7fffffff))
+    # Create a lock object
+    gil_lock = threading.Lock()
+
+    # Acquire the lock
+    #gil_lock.acquire()
+
+    # prev_interval = sys.getswitchinterval()
+    # sys.setswitchinterval(sys.maxsize)
     try:
 
         # Python will munge the parent package on import. Remember original value
@@ -141,7 +146,7 @@ def reimport(*modules):
                     if name not in sys.modules:
                         __import__(name)
 
-            except StandardError:
+            except Exception:
                 # Try to dissolve any newly import modules and revive the old ones
                 new_names = set(sys.modules) - prev_names
                 new_names = _package_depth_sort(new_names, True)
@@ -182,7 +187,7 @@ def reimport(*modules):
                 continue
             parents = _find_parent_importers(name, old_module, new_names)
             push_symbols[name] = parents
-        for name, parents in push_symbols.iteritems():
+        for name, parents in push_symbols.items():
             for parent in parents:
                 old_module = old_modules[name]
                 new_module = sys.modules[name]
@@ -199,7 +204,7 @@ def reimport(*modules):
             if reimported:
                 try:
                     rejigger = reimported(old)
-                except StandardError:
+                except Exception:
                     # What else can we do? the callbacks must go on
                     # Note, this is same as __del__ behaviour. /shrug
                     traceback.print_exc()
@@ -214,8 +219,8 @@ def reimport(*modules):
             clear_type_cache()
 
         # Restore the GIL
-        imp.release_lock()
-        sys.setcheckinterval(prev_interval)
+        #gil_lock.release()
+        # sys.setswitchinterval(prev_interval)
         time.sleep(0)
 
 
@@ -291,7 +296,7 @@ def _find_exact_target(module):
     if actual_module is not None:
         name = module
     else:
-        for name, mod in sys.modules.iteritems():
+        for name, mod in sys.modules.items():
             if mod is module:
                 actual_module = module
                 break
@@ -414,7 +419,7 @@ def _rejigger_module(old, new, ignores):
     # Get filename used by python code
     filename = new.__file__
 
-    for name, value in new_vars.iteritems():
+    for name, value in new_vars.items():
         if name in old_vars:
             old_value = old_vars[name]
             if old_value is value:
@@ -466,7 +471,7 @@ def _rejigger_class(old, new, ignores):
         ignore_attrs.append("__slots__")
     ignore_attrs = tuple(ignore_attrs)
 
-    for name, value in new_vars.iteritems():
+    for name, value in new_vars.items():
         if name in ignore_attrs:
             continue
 
@@ -495,10 +500,10 @@ def _rejigger_class(old, new, ignores):
 def _rejigger_func(old, new, ignores):
     """Mighty morphin power functions"""
     __internal_swaprefs_ignore__ = "rejigger_func"    
-    old.func_code = new.func_code
-    old.func_doc = new.func_doc
-    old.func_defaults = new.func_defaults
-    old.func_dict = new.func_dict
+    old.__code__ = new.__code__
+    old.__doc__ = new.__doc__
+    old.__defaults__ = new.__defaults__
+    old.__dict__ = new.__dict__
     _swap_refs(old, new, ignores)
 
 
@@ -609,12 +614,12 @@ def _swap_refs(old, new, ignores):
     refs = weakref.getweakrefs(old)
     if refs:
         try:
-            newRef = weakref.ref(new)
+            new_ref = weakref.ref(new)
         except ValueError:
             pass
         else:
-            for oldRef in refs:
-                _swap_refs(oldRef, newRef, ignores + (id(refs),))
+            for old_ref in refs:
+                _swap_refs(old_ref, new_ref, ignores + (id(refs),))
     del refs
 
     deque, defaultdict = _bonus_containers()
@@ -652,7 +657,7 @@ def _swap_refs(old, new, ignores):
                         container[new] = container.pop(old)
                 except TypeError:  # Unhashable old value
                     pass
-                for k,v in container.iteritems():
+                for k,v in container.items():
                     if v is old:
                         container[k] = new
 

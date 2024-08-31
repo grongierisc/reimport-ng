@@ -2,8 +2,8 @@
 __all__ = ["abc", "xyz"]
 
 def abc():
-    print "abc"
+    print("abc")
 
 
 def xyz():
-    print "xyz"
+    print("xyz")

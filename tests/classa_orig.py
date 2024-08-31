@@ -1,4 +1,4 @@
-print "--ORIGINAL A MODULE IMPORTED"
+print("--ORIGINAL A MODULE IMPORTED")
 
 import time
 
@@ -7,7 +7,7 @@ class ClassA(object):
     """original class a"""
     def runA(self):
         """original class a runA"""
-        print "Class A Run"
+        print("Class A Run")
     
     ClassStatic1 = 12
     ClassStatic2 = "twelve"
@@ -48,9 +48,9 @@ def FuncToClass():
 
 
 def __reimported__(old):
-    print "DO NOT USE THIS REIMPORT! I AM STALE"
+    print("DO NOT USE THIS REIMPORT! I AM STALE")
     raise RuntimeError("Do not want")
-    print "classa being reimported, from:", old
+    print("classa being reimported, from:", old)
     return True
 
 QMainWindow = type("QtNotFound", (object,), {})

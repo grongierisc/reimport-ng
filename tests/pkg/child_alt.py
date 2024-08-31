@@ -1,4 +1,4 @@
 def child():
-    print "ALT CHILD"
+    print("ALT CHILD")
 
 

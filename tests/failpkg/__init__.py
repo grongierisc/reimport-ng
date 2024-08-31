@@ -1,1 +1,1 @@
-from child import *
+from .child import *
