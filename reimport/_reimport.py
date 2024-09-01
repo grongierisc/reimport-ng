@@ -27,10 +27,11 @@ import time
 
 
 
-__version__ = "1.4"
+__version__ = "1.5.0"
 __author__ = "Peter Shinners <pete@shinners.org>"
+__maintainer__ = "Guillaume Rongier <guillaume.rongier@gmail.com>"
 __license__ = "MIT"
-__url__ = "http://code.google.com/p/reimport"
+__url__ = "https://github.com/grongierisc/reimport-ng"
 
 
 
