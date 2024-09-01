@@ -690,7 +690,7 @@ def _remove_refs(old, ignores):
     __internal_swaprefs_ignore__ = "remove_refs"
     
     # Ignore builtin immutables that keep no other references
-    if old is None or isinstance(old, (int, basestring, float, complex)):
+    if old is None or isinstance(old, (int, str, float, complex)):
         return
 
     deque, defaultdict = _bonus_containers()
