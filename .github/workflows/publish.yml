@@ -42,10 +42,10 @@ jobs:
         pip install -U pip setuptools
         pip install -r requirements-dev.txt
         echo version=$VERSION >> $GITHUB_OUTPUT
-        NAME="iris_pex_embedded_python"-${VERSION}-py3-none-any
+        NAME="reimport_ng"-${VERSION}-py3-none-any
         echo name=$NAME >> $GITHUB_OUTPUT
     - name: Build package
-      run: ./build-dist.sh
+      run: python -m build
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
