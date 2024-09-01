@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "reimport_ng"
-version = "1.5.0"
+version = "1.5.1"
 description = "Reimport a module in Python3"
 readme = "README.md"
 authors = [
